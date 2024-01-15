@@ -31,6 +31,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0
 	github.com/sigstore/fulcio v1.4.3
+	github.com/sigstore/protobuf-specs v0.2.1
 	github.com/sigstore/rekor v1.3.4
 	github.com/sigstore/sigstore v1.8.0
 	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.0
@@ -264,7 +265,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20231120223509-83a465c0220f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231127180814-3a041ad873d4 // indirect
 	google.golang.org/grpc v1.60.1 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
@@ -280,3 +281,5 @@ require (
 replace github.com/sigstore/rekor => github.com/trail-of-forks/rekor v0.0.0-20240112162233-2d93686760f8
 
 replace github.com/sigstore/sigstore => github.com/trail-of-forks/sigstore v0.0.0-20240112143627-ef70c23a75c8
+
+replace github.com/sigstore/protobuf-specs => github.com/trail-of-forks/protobuf-specs v0.0.0-20240109061816-794a4ed0d1b2
