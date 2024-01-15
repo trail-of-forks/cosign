@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/stretchr/testify/require"
 )
@@ -292,7 +293,7 @@ func pass(s string) PassFunc {
 
 func TestLoadECDSAPrivateKey(t *testing.T) {
 	// Generate a valid keypair
-	keys, err := GenerateKeyPair(pass("hello"))
+	keys, err := GenerateKeyPair(pass("hello"), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +345,7 @@ func TestReadingPrivatePemTypes(t *testing.T) {
 }
 
 func TestWritingPrivatePemTypes(t *testing.T) {
-	keys, err := GenerateKeyPair(pass("hello"))
+	keys, err := GenerateKeyPair(pass("hello"), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}

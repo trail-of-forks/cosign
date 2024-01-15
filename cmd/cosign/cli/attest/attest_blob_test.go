@@ -36,6 +36,7 @@ import (
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/test"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/dsse"
 )
@@ -192,7 +193,7 @@ func TestAttestBlob(t *testing.T) {
 	ctx := context.Background()
 	td := t.TempDir()
 
-	keys, _ := cosign.GenerateKeyPair(nil)
+	keys, _ := cosign.GenerateKeyPair(nil, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	keyRef := writeFile(t, td, string(keys.PrivateBytes), "key.pem")
 	pubKeyRef := writeFile(t, td, string(keys.PublicBytes), "key.pub")
 

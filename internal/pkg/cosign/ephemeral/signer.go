@@ -26,6 +26,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 
@@ -63,11 +64,11 @@ func (ks ephemeralSigner) Sign(_ context.Context, payload io.Reader) (oci.Signat
 
 // NewSigner generates a new private signing key and returns a `cosign.Signer` which creates signatures with it.
 func NewSigner() (icosign.Signer, error) {
-	priv, err := cosign.GeneratePrivateKey()
+	priv, err := cosign.GeneratePrivateKey(v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		return nil, fmt.Errorf("generating cert: %w", err)
 	}
-	s, err := signature.LoadECDSASignerVerifier(priv, crypto.SHA256)
+	s, err := signature.LoadSignerVerifier(priv, crypto.SHA256, signature.LoadDefaultSV, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating a SignerVerifier from ephemeral key: %w", err)
 	}

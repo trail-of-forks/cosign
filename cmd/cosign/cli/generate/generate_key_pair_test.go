@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	icos "github.com/sigstore/cosign/v2/internal/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 )
 
 func TestReadPasswordFn_env(t *testing.T) {
@@ -57,7 +58,7 @@ func TestGenerationOfKeys(t *testing.T) {
 	// be default it's set to `cosign`, but this is done by the CLI flag
 	// framework if there is no value set by the user when running the
 	// command.
-	GenerateKeyPairCmd(context.Background(), "", "my-test", nil)
+	GenerateKeyPairCmd(context.Background(), "", "my-test", v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256, nil)
 
 	checkIfFileExistsThenDelete(privateKeyName, t)
 	checkIfFileExistsThenDelete(publicKeyName, t)

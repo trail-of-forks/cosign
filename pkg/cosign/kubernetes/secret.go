@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,13 +53,13 @@ func GetKeyPairSecret(ctx context.Context, k8sRef string) (*v1.Secret, error) {
 	return s, nil
 }
 
-func KeyPairSecret(ctx context.Context, k8sRef string, pf cosign.PassFunc) error {
+func KeyPairSecret(ctx context.Context, k8sRef string, pf cosign.PassFunc, keyType pb_go_v1.SupportedAlgorithm) error {
 	namespace, name, err := parseRef(k8sRef)
 	if err != nil {
 		return err
 	}
 	// now, generate the key in memory
-	keys, err := cosign.GenerateKeyPair(pf)
+	keys, err := cosign.GenerateKeyPair(pf, keyType)
 	if err != nil {
 		return fmt.Errorf("generating key pair: %w", err)
 	}

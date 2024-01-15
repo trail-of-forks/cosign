@@ -23,6 +23,7 @@ import (
 
 	"github.com/sigstore/cosign/v2/pkg/blob"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	sigsignature "github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/kms"
 )
@@ -42,7 +43,7 @@ func generateKeyFile(t *testing.T, tmpDir string, pf cosign.PassFunc) (privFile,
 	defer tmpPubFile.Close()
 
 	// Generate a valid keypair.
-	keys, err := cosign.GenerateKeyPair(pf)
+	keys, err := cosign.GenerateKeyPair(pf, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatalf("failed to generate keypair: %v", err)
 	}
@@ -112,7 +113,7 @@ func TestPublicKeyFromFileRef(t *testing.T) {
 }
 
 func TestPublicKeyFromEnvVar(t *testing.T) {
-	keys, err := cosign.GenerateKeyPair(pass("whatever"))
+	keys, err := cosign.GenerateKeyPair(pass("whatever"), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatalf("failed to generate keypair: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestPublicKeyFromEnvVar(t *testing.T) {
 
 func TestSignerVerifierFromEnvVar(t *testing.T) {
 	passFunc := pass("whatever")
-	keys, err := cosign.GenerateKeyPair(passFunc)
+	keys, err := cosign.GenerateKeyPair(passFunc, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatalf("failed to generate keypair: %v", err)
 	}

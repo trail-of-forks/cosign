@@ -22,16 +22,17 @@ import (
 	"testing"
 
 	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 func mustGetNewSigner(t *testing.T) signature.Signer {
 	t.Helper()
-	priv, err := cosign.GeneratePrivateKey()
+	priv, err := cosign.GeneratePrivateKey(v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatalf("cosign.GeneratePrivateKey() failed: %v", err)
 	}
-	s, err := signature.LoadECDSASignerVerifier(priv, crypto.SHA256)
+	s, err := signature.LoadSignerVerifier(priv, crypto.SHA256, signature.LoadDefaultSV, nil)
 	if err != nil {
 		t.Fatalf("signature.LoadECDSASignerVerifier(key, crypto.SHA256) failed: %v", err)
 	}

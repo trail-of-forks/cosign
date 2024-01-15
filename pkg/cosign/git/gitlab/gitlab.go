@@ -24,6 +24,7 @@ import (
 	"github.com/sigstore/cosign/v2/internal/ui"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/xanzy/go-gitlab"
 )
 
@@ -37,8 +38,8 @@ func New() *Gl {
 	return &Gl{}
 }
 
-func (g *Gl) PutSecret(ctx context.Context, ref string, pf cosign.PassFunc) error {
-	keys, err := cosign.GenerateKeyPair(pf)
+func (g *Gl) PutSecret(ctx context.Context, ref string, pf cosign.PassFunc, keyType v1.SupportedAlgorithm) error {
+	keys, err := cosign.GenerateKeyPair(pf, keyType)
 	if err != nil {
 		return fmt.Errorf("generating key pair: %w", err)
 	}

@@ -69,6 +69,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci/mutate"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	tsaclient "github.com/sigstore/timestamp-authority/pkg/client"
 	"github.com/sigstore/timestamp-authority/pkg/server"
@@ -1266,7 +1267,7 @@ func TestKeyURLVerify(t *testing.T) {
 
 func TestGenerateKeyPairEnvVar(t *testing.T) {
 	defer setenv(t, "COSIGN_PASSWORD", "foo")()
-	keys, err := cosign.GenerateKeyPair(generate.GetPass)
+	keys, err := cosign.GenerateKeyPair(generate.GetPass, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1292,7 +1293,7 @@ func TestGenerateKeyPairK8s(t *testing.T) {
 	ctx := context.Background()
 	name := "cosign-secret"
 	namespace := "default"
-	if err := kubernetes.KeyPairSecret(ctx, fmt.Sprintf("k8s://%s/%s", namespace, name), generate.GetPass); err != nil {
+	if err := kubernetes.KeyPairSecret(ctx, fmt.Sprintf("k8s://%s/%s", namespace, name), generate.GetPass, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256); err != nil {
 		t.Fatal(err)
 	}
 	// make sure the secret actually exists
@@ -1581,7 +1582,7 @@ func keypair(t *testing.T, td string) (*cosign.KeysBytes, string, string) {
 	defer func() {
 		os.Chdir(wd)
 	}()
-	keys, err := cosign.GenerateKeyPair(passFunc)
+	keys, err := cosign.GenerateKeyPair(passFunc, v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}

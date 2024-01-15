@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 )
 
 func pass(s string) cosign.PassFunc {
@@ -36,7 +37,7 @@ func pass(s string) cosign.PassFunc {
 func TestPublicKeyLocation(t *testing.T) {
 	ctx := context.Background()
 	// Generate a valid keypair.
-	keys, err := cosign.GenerateKeyPair(pass("hello"))
+	keys, err := cosign.GenerateKeyPair(pass("hello"), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}

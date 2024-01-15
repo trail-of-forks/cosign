@@ -16,12 +16,18 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/spf13/cobra"
 )
 
 // SignOptions is the top level wrapper for the sign command.
 type SignOptions struct {
 	Key                   string
+	KeyType               cosign.SupportedAlgorithmOption
 	Cert                  string
 	CertChain             string
 	Upload                bool
@@ -66,6 +72,13 @@ func (o *SignOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.Key, "key", "",
 		"path to the private key file, KMS URI or Kubernetes Secret")
 	_ = cmd.Flags().SetAnnotation("key", cobra.BashCompFilenameExt, []string{})
+
+	keyAlgorithmTypes := []string{}
+	for _, keyAlgorithm := range v1.SupportedAlgorithm_value {
+		keyAlgorithmTypes = append(keyAlgorithmTypes, v1.SupportedAlgorithm_name[int32(keyAlgorithm)])
+	}
+	keyAlgorithmHelp := fmt.Sprintf("algorithm to use for signing (allowed %s) default: %s", strings.Join(keyAlgorithmTypes, ", "), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256.String())
+	cmd.Flags().Var(&o.KeyType, "key-algorithm", keyAlgorithmHelp)
 
 	cmd.Flags().StringVar(&o.Cert, "certificate", "",
 		"path to the X.509 certificate in PEM format to include in the OCI Signature")

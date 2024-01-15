@@ -16,6 +16,11 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/spf13/cobra"
 )
 
@@ -24,12 +29,20 @@ type GenerateKeyPairOptions struct {
 	// KMS Key Management Service
 	KMS             string
 	OutputKeyPrefix string
+	KeyType         cosign.SupportedAlgorithmOption
 }
 
 var _ Interface = (*GenerateKeyPairOptions)(nil)
 
 // AddFlags implements Interface
 func (o *GenerateKeyPairOptions) AddFlags(cmd *cobra.Command) {
+	keyAlgorithmTypes := []string{}
+	for _, keyAlgorithm := range v1.SupportedAlgorithm_value {
+		keyAlgorithmTypes = append(keyAlgorithmTypes, v1.SupportedAlgorithm_name[int32(keyAlgorithm)])
+	}
+	keyAlgorithmHelp := fmt.Sprintf("algorithm to use for signing (allowed %s) default: %s", strings.Join(keyAlgorithmTypes, ", "), v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256.String())
+	cmd.Flags().Var(&o.KeyType, "key-algorithm", keyAlgorithmHelp)
+
 	cmd.Flags().StringVar(&o.KMS, "kms", "",
 		"create key pair in KMS service to use for signing")
 	cmd.Flags().StringVar(&o.OutputKeyPrefix, "output-key-prefix", "cosign",

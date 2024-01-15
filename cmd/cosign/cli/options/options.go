@@ -15,7 +15,9 @@
 
 package options
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 type Interface interface {
 	// AddFlags adds this options' flags to the cobra command.

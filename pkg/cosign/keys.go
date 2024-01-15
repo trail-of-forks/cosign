@@ -32,6 +32,7 @@ import (
 
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
@@ -69,9 +70,41 @@ func (k *KeysBytes) Password() []byte {
 	return k.password
 }
 
+type SupportedAlgorithmOption v1.SupportedAlgorithm
+
+func (sa *SupportedAlgorithmOption) String() string {
+	return string(*sa)
+}
+
+func (sa *SupportedAlgorithmOption) Set(s string) error {
+	for _, v := range v1.SupportedAlgorithm_value {
+		if s == v1.SupportedAlgorithm_name[int32(v)] {
+			*sa = SupportedAlgorithmOption(v)
+			return nil
+		}
+	}
+	return fmt.Errorf("unsupported algorithm: %s", s)
+}
+
+func (sa *SupportedAlgorithmOption) Type() string {
+	return "v1.SupportedAlgorithm"
+}
+
+func (sa *SupportedAlgorithmOption) Value() v1.SupportedAlgorithm {
+	return v1.SupportedAlgorithm(*sa)
+}
+
 // TODO(jason): Move this to an internal package.
-func GeneratePrivateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func GeneratePrivateKey(keyType v1.SupportedAlgorithm) (crypto.Signer, error) {
+	switch keyType {
+	case v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256:
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case v1.SupportedAlgorithm_ED25519:
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		return priv, err
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %v", keyType)
+	}
 }
 
 // TODO(jason): Move this to the only place it's used in cmd/cosign/cli/importkeypair, and unexport it.
@@ -181,8 +214,8 @@ func marshalKeyPair(ptype string, keypair Keys, pf PassFunc) (key *KeysBytes, er
 }
 
 // TODO(jason): Move this to an internal package.
-func GenerateKeyPair(pf PassFunc) (*KeysBytes, error) {
-	priv, err := GeneratePrivateKey()
+func GenerateKeyPair(pf PassFunc, keyType v1.SupportedAlgorithm) (*KeysBytes, error) {
+	priv, err := GeneratePrivateKey(keyType)
 	if err != nil {
 		return nil, err
 	}

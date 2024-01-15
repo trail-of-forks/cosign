@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio/fulcioverifier"
@@ -521,12 +522,12 @@ func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef strin
 	return certSigner, nil
 }
 
-func signerFromNewKey() (*SignerVerifier, error) {
-	privKey, err := cosign.GeneratePrivateKey()
+func signerFromNewKey(keyType pb_go_v1.SupportedAlgorithm) (*SignerVerifier, error) {
+	privKey, err := cosign.GeneratePrivateKey(keyType)
 	if err != nil {
 		return nil, fmt.Errorf("generating cert: %w", err)
 	}
-	sv, err := signature.LoadECDSASignerVerifier(privKey, crypto.SHA256)
+	sv, err := signature.LoadSignerVerifier(privKey, crypto.SHA256, signature.LoadED25519phSV, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +572,7 @@ func SignerFromKeyOpts(ctx context.Context, certPath string, certChainPath strin
 	default:
 		genKey = true
 		ui.Infof(ctx, "Generating ephemeral keys...")
-		sv, err = signerFromNewKey()
+		sv, err = signerFromNewKey(ko.KeyType)
 	}
 	if err != nil {
 		return nil, err

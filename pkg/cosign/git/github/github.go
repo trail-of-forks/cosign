@@ -31,6 +31,7 @@ import (
 
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 )
 
 const (
@@ -43,7 +44,7 @@ func New() *Gh {
 	return &Gh{}
 }
 
-func (g *Gh) PutSecret(ctx context.Context, ref string, pf cosign.PassFunc) error {
+func (g *Gh) PutSecret(ctx context.Context, ref string, pf cosign.PassFunc, keyType v1.SupportedAlgorithm) error {
 	var httpClient *http.Client
 	if token, ok := env.LookupEnv(env.VariableGitHubToken); ok {
 		ts := oauth2.StaticTokenSource(
@@ -65,7 +66,7 @@ func (g *Gh) PutSecret(ctx context.Context, ref string, pf cosign.PassFunc) erro
 		client = github.NewClient(httpClient)
 	}
 
-	keys, err := cosign.GenerateKeyPair(pf)
+	keys, err := cosign.GenerateKeyPair(pf, keyType)
 	if err != nil {
 		return fmt.Errorf("generating key pair: %w", err)
 	}

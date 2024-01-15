@@ -28,6 +28,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign/git"
 	"github.com/sigstore/cosign/v2/pkg/cosign/git/github"
 	"github.com/sigstore/cosign/v2/pkg/cosign/git/gitlab"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 
 	icos "github.com/sigstore/cosign/v2/internal/pkg/cosign"
 	"github.com/sigstore/cosign/v2/internal/ui"
@@ -43,7 +44,7 @@ var (
 )
 
 // nolint
-func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal string, args []string) error {
+func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal string, keyType v1.SupportedAlgorithm, args []string) error {
 	privateKeyFileName := outputKeyPrefixVal + ".key"
 	publicKeyFileName := outputKeyPrefixVal + ".pub"
 
@@ -78,15 +79,15 @@ func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal s
 
 		switch provider {
 		case "k8s":
-			return kubernetes.KeyPairSecret(ctx, targetRef, GetPass)
+			return kubernetes.KeyPairSecret(ctx, targetRef, GetPass, keyType)
 		case gitlab.ReferenceScheme, github.ReferenceScheme:
-			return git.GetProvider(provider).PutSecret(ctx, targetRef, GetPass)
+			return git.GetProvider(provider).PutSecret(ctx, targetRef, GetPass, keyType)
 		}
 
 		return fmt.Errorf("undefined provider: %s", provider)
 	}
 
-	keys, err := cosign.GenerateKeyPair(GetPass)
+	keys, err := cosign.GenerateKeyPair(GetPass, keyType)
 	if err != nil {
 		return err
 	}

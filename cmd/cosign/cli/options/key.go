@@ -17,6 +17,7 @@ package options
 
 import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 
@@ -24,6 +25,7 @@ type KeyOpts struct {
 	Sk                     bool
 	Slot                   string
 	KeyRef                 string
+	KeyType                v1.SupportedAlgorithm
 	FulcioURL              string
 	RekorURL               string
 	IDToken                string

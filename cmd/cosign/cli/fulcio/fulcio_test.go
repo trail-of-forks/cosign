@@ -32,6 +32,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/test"
 	"github.com/sigstore/fulcio/pkg/api"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/oauthflow"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -207,11 +208,11 @@ func TestNewSigner(t *testing.T) {
 		FulcioURL:      testServer.URL,
 		FulcioAuthFlow: "token",
 	}
-	privKey, err := cosign.GeneratePrivateKey()
+	privKey, err := cosign.GeneratePrivateKey(v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sv, err := signature.LoadECDSASignerVerifier(privKey, crypto.SHA256)
+	sv, err := signature.LoadECDSASignerVerifier(privKey.(*ecdsa.PrivateKey), crypto.SHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
