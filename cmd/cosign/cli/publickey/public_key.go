@@ -44,7 +44,7 @@ func GetPublicKey(ctx context.Context, opts Pkopts, writer NamedWriter, pf cosig
 	var k signature.PublicKeyProvider
 	switch {
 	case opts.KeyRef != "":
-		s, err := sigs.SignerFromKeyRef(ctx, opts.KeyRef, pf)
+		s, err := sigs.SignerFromKeyRef(ctx, opts.KeyRef, pf, signature.LoadDefaultSV, nil)
 		if err != nil {
 			return err
 		}

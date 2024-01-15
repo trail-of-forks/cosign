@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
@@ -219,7 +220,7 @@ func verifyOCISignature(ctx context.Context, verifier signature.Verifier, sig pa
 // ValidateAndUnpackCert creates a Verifier from a certificate. Veries that the certificate
 // chains up to a trusted root. Optionally verifies the subject and issuer of the certificate.
 func ValidateAndUnpackCert(cert *x509.Certificate, co *CheckOpts) (signature.Verifier, error) {
-	verifier, err := signature.LoadVerifier(cert.PublicKey, crypto.SHA256)
+	verifier, err := signature.LoadVerifier(cert.PublicKey, crypto.SHA256, signature.LoadED25519phSV, nil)
 	if err != nil {
 		return nil, fmt.Errorf("invalid certificate found on signature: %w", err)
 	}
@@ -1092,12 +1093,19 @@ func VerifyBundle(sig oci.Signature, co *CheckOpts) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("computing bundle hash: %w", err)
 	}
-	h := sha256.Sum256(payload)
-	payloadHash := hex.EncodeToString(h[:])
-
-	if alg != "sha256" {
+	var payloadHash string
+	switch alg {
+	case "sha256":
+		h := sha256.Sum256(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	case "sha512":
+		h := sha512.Sum512(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	default:
 		return false, fmt.Errorf("unexpected algorithm: %q", alg)
-	} else if bundlehash != payloadHash {
+	}
+
+	if bundlehash != payloadHash {
 		return false, fmt.Errorf("matching bundle to payload: bundle=%q, payload=%q", bundlehash, payloadHash)
 	}
 	return true, nil

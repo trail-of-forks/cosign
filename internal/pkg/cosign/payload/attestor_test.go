@@ -47,7 +47,7 @@ func TestDSSEAttestor(t *testing.T) {
 		t.Errorf("got MediaType() %q, wanted %q", gotMT, types.DssePayloadType)
 	}
 
-	verifier, err := signature.LoadVerifier(pub, crypto.SHA256)
+	verifier, err := signature.LoadVerifier(pub, crypto.SHA256, signature.LoadDefaultSV, nil)
 	if err != nil {
 		t.Fatalf("signature.LoadVerifier(pub) returned error: %v", err)
 	}

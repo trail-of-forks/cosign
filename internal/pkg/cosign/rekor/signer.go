@@ -95,7 +95,7 @@ func (rs *signerWrapper) Sign(ctx context.Context, payload io.Reader) (oci.Signa
 		if _, err := checkSum.Write(payloadBytes); err != nil {
 			return nil, err
 		}
-		return cosignv1.TLogUpload(ctx, r, sigBytes, checkSum, b)
+		return cosignv1.TLogUpload(ctx, r, sigBytes, checkSum, crypto.SHA256, b)
 	})
 	if err != nil {
 		return nil, nil, err

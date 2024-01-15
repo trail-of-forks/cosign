@@ -15,31 +15,36 @@
 
 package options
 
-import "github.com/sigstore/cosign/v2/pkg/cosign"
+import (
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/sigstore/pkg/signature"
+)
 
 type KeyOpts struct {
-	Sk                   bool
-	Slot                 string
-	KeyRef               string
-	FulcioURL            string
-	RekorURL             string
-	IDToken              string
-	PassFunc             cosign.PassFunc
-	OIDCIssuer           string
-	OIDCClientID         string
-	OIDCClientSecret     string
-	OIDCRedirectURL      string
-	OIDCDisableProviders bool   // Disable OIDC credential providers in keyless signer
-	OIDCProvider         string // Specify which OIDC credential provider to use for keyless signer
-	BundlePath           string
-	SkipConfirmation     bool
-	TSAClientCACert      string
-	TSAClientCert        string
-	TSAClientKey         string
-	TSAServerName        string // expected SAN field in the TSA server's certificate - https://pkg.go.dev/crypto/tls#Config.ServerName
-	TSAServerURL         string
-	RFC3161TimestampPath string
-	TSACertChainPath     string
+	Sk                     bool
+	Slot                   string
+	KeyRef                 string
+	FulcioURL              string
+	RekorURL               string
+	IDToken                string
+	PassFunc               cosign.PassFunc
+	OIDCIssuer             string
+	OIDCClientID           string
+	OIDCClientSecret       string
+	OIDCRedirectURL        string
+	OIDCDisableProviders   bool   // Disable OIDC credential providers in keyless signer
+	OIDCProvider           string // Specify which OIDC credential provider to use for keyless signer
+	LoadSignerVerifierType signature.LoadSignerVerifierType
+	LoadSignerVerifierOpts *signature.LoadSignerVerifierOpts
+	BundlePath             string
+	SkipConfirmation       bool
+	TSAClientCACert        string
+	TSAClientCert          string
+	TSAClientKey           string
+	TSAServerName          string // expected SAN field in the TSA server's certificate - https://pkg.go.dev/crypto/tls#Config.ServerName
+	TSAServerURL           string
+	RFC3161TimestampPath   string
+	TSACertChainPath       string
 	// IssueCertificate controls whether to issue a certificate when a key is
 	// provided.
 	IssueCertificateForExistingKey bool

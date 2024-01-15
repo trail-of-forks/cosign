@@ -391,8 +391,8 @@ func signerFromSecurityKey(ctx context.Context, keySlot string) (*SignerVerifier
 	}, nil
 }
 
-func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef string, passFunc cosign.PassFunc) (*SignerVerifier, error) {
-	k, err := sigs.SignerVerifierFromKeyRef(ctx, keyRef, passFunc)
+func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef string, passFunc cosign.PassFunc, loadSignerVerifierType signature.LoadSignerVerifierType, loadSignerVerifierOpts *signature.LoadSignerVerifierOpts) (*SignerVerifier, error) {
+	k, err := sigs.SignerVerifierFromKeyRef(ctx, keyRef, passFunc, loadSignerVerifierType, loadSignerVerifierOpts)
 	if err != nil {
 		return nil, fmt.Errorf("reading key: %w", err)
 	}
@@ -567,7 +567,7 @@ func SignerFromKeyOpts(ctx context.Context, certPath string, certChainPath strin
 	case ko.Sk:
 		sv, err = signerFromSecurityKey(ctx, ko.Slot)
 	case ko.KeyRef != "":
-		sv, err = signerFromKeyRef(ctx, certPath, certChainPath, ko.KeyRef, ko.PassFunc)
+		sv, err = signerFromKeyRef(ctx, certPath, certChainPath, ko.KeyRef, ko.PassFunc, ko.LoadSignerVerifierType, ko.LoadSignerVerifierOpts)
 	default:
 		genKey = true
 		ui.Infof(ctx, "Generating ephemeral keys...")

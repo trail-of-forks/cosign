@@ -44,6 +44,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/policy"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 // VerifyBlobAttestationCommand verifies an attestation on a supplied blob
@@ -210,7 +211,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 	opts := make([]static.Option, 0)
 	switch {
 	case c.KeyRef != "":
-		co.SigVerifier, err = sigs.PublicKeyFromKeyRef(ctx, c.KeyRef)
+		co.SigVerifier, err = sigs.PublicKeyFromKeyRef(ctx, c.KeyRef, signature.LoadDefaultSV, nil)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -255,7 +256,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 			bundleCert, err := loadCertFromPEM(certBytes)
 			if err != nil {
 				// check if cert is actually a public key
-				co.SigVerifier, err = sigs.LoadPublicKeyRaw(certBytes, crypto.SHA256)
+				co.SigVerifier, err = sigs.LoadPublicKeyRaw(certBytes, crypto.SHA256, signature.LoadDefaultSV, nil)
 				if err != nil {
 					return fmt.Errorf("loading verifier from bundle: %w", err)
 				}

@@ -60,7 +60,7 @@ func TestSigner(t *testing.T) {
 	}
 
 	// Verify that the wrapped signer was called.
-	verifier, err := signature.LoadVerifier(pub, crypto.SHA256)
+	verifier, err := signature.LoadVerifier(pub, crypto.SHA256, signature.LoadDefaultSV, nil)
 	if err != nil {
 		t.Fatalf("signature.LoadVerifier(pub) returned error: %v", err)
 	}

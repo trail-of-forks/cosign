@@ -250,7 +250,7 @@ func TestAttestBlob(t *testing.T) {
 			}
 
 			// Load a verifier and DSSE verify
-			verifier, _ := signature.LoadVerifierFromPEMFile(pubKeyRef, crypto.SHA256)
+			verifier, _ := signature.LoadVerifierFromPEMFile(pubKeyRef, crypto.SHA256, signature.LoadDefaultSV, nil)
 			dssev, err := ssldsse.NewEnvelopeVerifier(&dsse.VerifierAdapter{SignatureVerifier: verifier})
 			if err != nil {
 				t.Fatalf("new envelope verifier: %v", err)

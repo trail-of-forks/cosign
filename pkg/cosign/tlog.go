@@ -170,8 +170,8 @@ func rekorPubsFromClient(rekorClient *client.Rekor) (*TrustedTransparencyLogPubK
 }
 
 // TLogUpload will upload the signature, public key and payload to the transparency log.
-func TLogUpload(ctx context.Context, rekorClient *client.Rekor, signature []byte, sha256CheckSum hash.Hash, pemBytes []byte) (*models.LogEntryAnon, error) {
-	re := rekorEntry(sha256CheckSum, signature, pemBytes)
+func TLogUpload(ctx context.Context, rekorClient *client.Rekor, signature []byte, checksum hash.Hash, checksumType crypto.Hash, pemBytes []byte) (*models.LogEntryAnon, error) {
+	re := rekorEntry(checksum, checksumType, signature, pemBytes)
 	returnVal := models.Hashedrekord{
 		APIVersion: swag.String(re.APIVersion()),
 		Spec:       re.HashedRekordObj,
@@ -230,16 +230,24 @@ func doUpload(ctx context.Context, rekorClient *client.Rekor, pe models.Proposed
 	return nil, errors.New("bad response from server")
 }
 
-func rekorEntry(sha256CheckSum hash.Hash, signature, pubKey []byte) hashedrekord_v001.V001Entry {
-	// TODO: Signatures created on a digest using a hash algorithm other than SHA256 will fail
-	// upload right now. Plumb information on the hash algorithm used when signing from the
-	// SignerVerifier to use for the HashedRekordObj.Data.Hash.Algorithm.
+func getChecksumAlgorithm(checksumType crypto.Hash) string {
+	switch checksumType {
+	case crypto.SHA256:
+		return models.HashedrekordV001SchemaDataHashAlgorithmSha256
+	case crypto.SHA512:
+		return models.HashedrekordV001SchemaDataHashAlgorithmSha512
+	default:
+		return models.HashedrekordV001SchemaDataHashAlgorithmSha256
+	}
+}
+
+func rekorEntry(checksum hash.Hash, checksumType crypto.Hash, signature, pubKey []byte) hashedrekord_v001.V001Entry {
 	return hashedrekord_v001.V001Entry{
 		HashedRekordObj: models.HashedrekordV001Schema{
 			Data: &models.HashedrekordV001SchemaData{
 				Hash: &models.HashedrekordV001SchemaDataHash{
-					Algorithm: swag.String(models.HashedrekordV001SchemaDataHashAlgorithmSha256),
-					Value:     swag.String(hex.EncodeToString(sha256CheckSum.Sum(nil))),
+					Algorithm: swag.String(getChecksumAlgorithm(checksumType)),
+					Value:     swag.String(hex.EncodeToString(checksum.Sum(nil))),
 				},
 			},
 			Signature: &models.HashedrekordV001SchemaSignature{
@@ -396,7 +404,7 @@ func proposedEntries(b64Sig string, payload, pubKey []byte) ([]models.ProposedEn
 		if _, err := sha256CheckSum.Write(payload); err != nil {
 			return nil, err
 		}
-		re := rekorEntry(sha256CheckSum, signature, pubKey)
+		re := rekorEntry(sha256CheckSum, crypto.SHA256, signature, pubKey)
 		entry := &models.Hashedrekord{
 			APIVersion: swag.String(re.APIVersion()),
 			Spec:       re.HashedRekordObj,

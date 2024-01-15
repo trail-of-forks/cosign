@@ -35,6 +35,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/test"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 func pass(s string) cosign.PassFunc {
@@ -134,7 +135,7 @@ func Test_signerFromKeyRefSuccess(t *testing.T) {
 	ctx := context.Background()
 	keyFile, certFile, chainFile, privKey, cert, chain := generateCertificateFiles(t, tmpDir, pass("foo"))
 
-	signer, err := signerFromKeyRef(ctx, certFile, chainFile, keyFile, pass("foo"))
+	signer, err := signerFromKeyRef(ctx, certFile, chainFile, keyFile, pass("foo"), signature.LoadDefaultSV, nil)
 	if err != nil {
 		t.Fatalf("unexpected error generating signer: %v", err)
 	}
@@ -173,17 +174,17 @@ func Test_signerFromKeyRefFailure(t *testing.T) {
 	_, certFile2, chainFile2, _, _, _ := generateCertificateFiles(t, tmpDir2, pass("bar"))
 
 	// Public keys don't match
-	_, err := signerFromKeyRef(ctx, certFile2, chainFile2, keyFile, pass("foo"))
+	_, err := signerFromKeyRef(ctx, certFile2, chainFile2, keyFile, pass("foo"), signature.LoadDefaultSV, nil)
 	if err == nil || err.Error() != "public key in certificate does not match the provided public key" {
 		t.Fatalf("expected mismatched keys error, got %v", err)
 	}
 	// Certificate chain cannot be verified
-	_, err = signerFromKeyRef(ctx, certFile, chainFile2, keyFile, pass("foo"))
+	_, err = signerFromKeyRef(ctx, certFile, chainFile2, keyFile, pass("foo"), signature.LoadDefaultSV, nil)
 	if err == nil || !strings.Contains(err.Error(), "unable to validate certificate chain") {
 		t.Fatalf("expected chain verification error, got %v", err)
 	}
 	// Certificate chain specified without certificate
-	_, err = signerFromKeyRef(ctx, "", chainFile2, keyFile, pass("foo"))
+	_, err = signerFromKeyRef(ctx, "", chainFile2, keyFile, pass("foo"), signature.LoadDefaultSV, nil)
 	if err == nil || !strings.Contains(err.Error(), "no leaf certificate found or provided while specifying chain") {
 		t.Fatalf("expected no leaf error, got %v", err)
 	}
@@ -203,7 +204,7 @@ func Test_signerFromKeyRefFailureEmptyChainFile(t *testing.T) {
 		t.Fatalf("failed to write chain file: %v", err)
 	}
 
-	_, err = signerFromKeyRef(ctx, certFile, tmpChainFile.Name(), keyFile, pass("foo"))
+	_, err = signerFromKeyRef(ctx, certFile, tmpChainFile.Name(), keyFile, pass("foo"), signature.LoadDefaultSV, nil)
 	if err == nil || err.Error() != "no certificates in certificate chain" {
 		t.Fatalf("expected empty chain error, got %v", err)
 	}

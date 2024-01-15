@@ -85,7 +85,7 @@ func TestSignerFromPrivateKeyFileRef(t *testing.T) {
 			t.Parallel()
 			testFile, _ := generateKeyFile(t, tmpDir, tc.writePw)
 
-			signer, err := SignerFromKeyRef(ctx, testFile, tc.readPw)
+			signer, err := SignerFromKeyRef(ctx, testFile, tc.readPw, sigsignature.LoadDefaultSV, nil)
 			if err != nil {
 				if tc.expectErr {
 					// Task failed successfully
@@ -106,7 +106,7 @@ func TestPublicKeyFromFileRef(t *testing.T) {
 	ctx := context.Background()
 	_, testFile := generateKeyFile(t, tmpDir, pass("whatever"))
 
-	if _, err := PublicKeyFromKeyRef(ctx, testFile); err != nil {
+	if _, err := PublicKeyFromKeyRef(ctx, testFile, sigsignature.LoadDefaultSV, nil); err != nil {
 		t.Fatalf("PublicKeyFromKeyRef returned error: %v", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestPublicKeyFromEnvVar(t *testing.T) {
 
 	os.Setenv("MY_ENV_VAR", string(keys.PublicBytes))
 	defer os.Unsetenv("MY_ENV_VAR")
-	if _, err := PublicKeyFromKeyRef(ctx, "env://MY_ENV_VAR"); err != nil {
+	if _, err := PublicKeyFromKeyRef(ctx, "env://MY_ENV_VAR", sigsignature.LoadDefaultSV, nil); err != nil {
 		t.Fatalf("PublicKeyFromKeyRef returned error: %v", err)
 	}
 }
@@ -135,7 +135,7 @@ func TestSignerVerifierFromEnvVar(t *testing.T) {
 
 	os.Setenv("MY_ENV_VAR", string(keys.PrivateBytes))
 	defer os.Unsetenv("MY_ENV_VAR")
-	if _, err := SignerVerifierFromKeyRef(ctx, "env://MY_ENV_VAR", passFunc); err != nil {
+	if _, err := SignerVerifierFromKeyRef(ctx, "env://MY_ENV_VAR", passFunc, sigsignature.LoadDefaultSV, nil); err != nil {
 		t.Fatalf("SignerVerifierFromKeyRef returned error: %v", err)
 	}
 }
@@ -147,14 +147,14 @@ func TestVerifierForKeyRefError(t *testing.T) {
 	var uerr *blob.UnrecognizedSchemeError
 
 	ctx := context.Background()
-	_, err := PublicKeyFromKeyRef(ctx, "errorkms://bad")
+	_, err := PublicKeyFromKeyRef(ctx, "errorkms://bad", sigsignature.LoadDefaultSV, nil)
 	if err == nil {
 		t.Fatalf("PublicKeyFromKeyRef didn't return any error")
 	} else if errors.As(err, &uerr) {
 		t.Fatalf("PublicKeyFromKeyRef returned UnrecognizedSchemeError: %v", err)
 	}
 
-	_, err = PublicKeyFromKeyRef(ctx, "badscheme://bad")
+	_, err = PublicKeyFromKeyRef(ctx, "badscheme://bad", sigsignature.LoadDefaultSV, nil)
 	if err == nil {
 		t.Fatalf("PublicKeyFromKeyRef didn't return any error")
 	} else if !errors.As(err, &uerr) {

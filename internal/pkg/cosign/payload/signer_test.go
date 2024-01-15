@@ -48,7 +48,7 @@ func TestSigner(t *testing.T) {
 		t.Fatalf("Sign() returned error: %v", err)
 	}
 
-	verifier, err := signature.LoadVerifier(pub, crypto.SHA256)
+	verifier, err := signature.LoadVerifier(pub, crypto.SHA256, signature.LoadDefaultSV, nil)
 	if err != nil {
 		t.Fatalf("signature.LoadVerifier(pub) returned error: %v", err)
 	}
