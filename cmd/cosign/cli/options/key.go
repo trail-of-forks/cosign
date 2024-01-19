@@ -15,12 +15,15 @@
 
 package options
 
-import "github.com/sigstore/cosign/v2/pkg/cosign"
+import (
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+)
 
 type KeyOpts struct {
 	Sk                   bool
 	Slot                 string
 	KeyRef               string
+	SigningAlgorithm     string
 	FulcioURL            string
 	RekorURL             string
 	IDToken              string

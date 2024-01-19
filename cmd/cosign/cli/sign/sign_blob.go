@@ -36,7 +36,6 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
-	"github.com/sigstore/sigstore/pkg/signature"
 	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
 )
 
@@ -66,12 +65,7 @@ func SignBlobCmd(ro *options.RootOptions, ko options.KeyOpts, payloadPath string
 	ctx, cancel := context.WithTimeout(context.Background(), ro.Timeout)
 	defer cancel()
 
-	svOptions := []signature.LoadOption{
-		signatureoptions.WithHash(crypto.SHA256),
-		signatureoptions.WithED25519ph(),
-	}
-
-	sv, err := signerFromKeyOptsWithSVOpts(ctx, "", "", ko, svOptions...)
+	sv, err := SignerFromKeyOpts(ctx, "", "", ko)
 	if err != nil {
 		return nil, err
 	}

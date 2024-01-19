@@ -31,6 +31,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0
 	github.com/sigstore/fulcio v1.4.3
+	github.com/sigstore/protobuf-specs v0.3.0-beta.2
 	github.com/sigstore/rekor v1.3.4
 	github.com/sigstore/sigstore v1.8.1
 	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.1
@@ -278,6 +279,6 @@ require (
 )
 
 // TODO: REMOVE ME
-replace github.com/sigstore/sigstore => github.com/trail-of-forks/sigstore v0.0.0-20240129151206-cff4abcde12e
+replace github.com/sigstore/sigstore => /Users/ret2libc/projects/sigstore/sigstore
 
-replace github.com/sigstore/rekor => github.com/trail-of-forks/rekor v0.0.0-20240129163653-3ac4c89bd056
+replace github.com/sigstore/rekor => /Users/ret2libc/projects/sigstore/rekor

@@ -70,6 +70,7 @@ func SignBlob() *cobra.Command {
 			}
 			ko := options.KeyOpts{
 				KeyRef:                         o.Key,
+				SigningAlgorithm:               o.SigningAlgorithm,
 				PassFunc:                       generate.GetPass,
 				Sk:                             o.SecurityKey.Use,
 				Slot:                           o.SecurityKey.Slot,

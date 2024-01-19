@@ -57,7 +57,7 @@ func TestGenerationOfKeys(t *testing.T) {
 	// be default it's set to `cosign`, but this is done by the CLI flag
 	// framework if there is no value set by the user when running the
 	// command.
-	GenerateKeyPairCmd(context.Background(), "", "my-test", nil)
+	GenerateKeyPairCmd(context.Background(), "", "my-test", "ecdsa-sha2-256-nistp256", nil)
 
 	checkIfFileExistsThenDelete(privateKeyName, t)
 	checkIfFileExistsThenDelete(publicKeyName, t)

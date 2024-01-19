@@ -34,6 +34,9 @@ func GenerateKeyPair() *cobra.Command {
   # generate key-pair and write to cosign.key and cosign.pub files
   cosign generate-key-pair
 
+  # generate ED25519 key-pair and write to cosign.key and cosign.pub files
+  cosign generate-key-pair --signing-algorithm=ed25519-ph
+
   # generate key-pair and write to custom named my-name.key and my-name.pub files
   cosign generate-key-pair --output-key-prefix my-name
 
@@ -67,7 +70,7 @@ CAVEATS:
 
 		PersistentPreRun: options.BindViper,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generate.GenerateKeyPairCmd(cmd.Context(), o.KMS, o.OutputKeyPrefix, args)
+			return generate.GenerateKeyPairCmd(cmd.Context(), o.KMS, o.OutputKeyPrefix, o.SigningAlgorithm, args)
 		},
 	}
 

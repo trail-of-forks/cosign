@@ -18,7 +18,6 @@ package sign
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +31,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio/fulcioverifier"
@@ -138,12 +138,7 @@ func SignCmd(ro *options.RootOptions, ko options.KeyOpts, signOpts options.SignO
 	ctx, cancel := context.WithTimeout(context.Background(), ro.Timeout)
 	defer cancel()
 
-	svOptions := []signature.LoadOption{
-		signatureoptions.WithHash(crypto.SHA256),
-		signatureoptions.WithED25519ph(),
-	}
-
-	sv, err := signerFromKeyOptsWithSVOpts(ctx, signOpts.Cert, signOpts.CertChain, ko, svOptions...)
+	sv, err := SignerFromKeyOpts(ctx, signOpts.Cert, signOpts.CertChain, ko)
 	if err != nil {
 		return fmt.Errorf("getting signer: %w", err)
 	}
@@ -531,8 +526,8 @@ func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef strin
 	return certSigner, nil
 }
 
-func signerFromNewKey(svOpts ...signature.LoadOption) (*SignerVerifier, error) {
-	privKey, err := cosign.GeneratePrivateKey()
+func signerFromNewKey(algorithmDetails signature.AlgorithmDetails, svOpts ...signature.LoadOption) (*SignerVerifier, error) {
+	privKey, err := cosign.GeneratePrivateKeyWithAlgo(algorithmDetails)
 	if err != nil {
 		return nil, fmt.Errorf("generating cert: %w", err)
 	}
@@ -569,9 +564,27 @@ func keylessSigner(ctx context.Context, ko options.KeyOpts, sv *SignerVerifier) 
 	}, nil
 }
 
-func signerFromKeyOptsWithSVOpts(ctx context.Context, certPath string, certChainPath string, ko options.KeyOpts, svOpts ...signature.LoadOption) (*SignerVerifier, error) {
+func SignerFromKeyOpts(ctx context.Context, certPath string, certChainPath string, ko options.KeyOpts) (*SignerVerifier, error) {
+	var svOpts []signature.LoadOption
+	signingAlgorithm, err := signature.ParseSignatureAlgorithmFlag(ko.SigningAlgorithm)
+	if err != nil {
+		// Default to ECDSA_SHA2_256_NISTP256 if no algorithm is specified
+		signingAlgorithm = pb_go_v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256
+	}
+
+	algorithmDetails, err := signature.GetAlgorithmDetails(signingAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	hashAlgorithm := algorithmDetails.GetHashType()
+	svOpts = []signature.LoadOption{
+		signatureoptions.WithHash(hashAlgorithm),
+	}
+	if algorithmDetails.GetSignatureAlgorithm() == pb_go_v1.KnownSignatureAlgorithm_ED25519_PH {
+		svOpts = append(svOpts, signatureoptions.WithED25519ph())
+	}
+
 	var sv *SignerVerifier
-	var err error
 	genKey := false
 	switch {
 	case ko.Sk:
@@ -581,7 +594,7 @@ func signerFromKeyOptsWithSVOpts(ctx context.Context, certPath string, certChain
 	default:
 		genKey = true
 		ui.Infof(ctx, "Generating ephemeral keys...")
-		sv, err = signerFromNewKey(svOpts...)
+		sv, err = signerFromNewKey(algorithmDetails, svOpts...)
 	}
 	if err != nil {
 		return nil, err
@@ -592,10 +605,6 @@ func signerFromKeyOptsWithSVOpts(ctx context.Context, certPath string, certChain
 	}
 
 	return sv, nil
-}
-
-func SignerFromKeyOpts(ctx context.Context, certPath string, certChainPath string, ko options.KeyOpts) (*SignerVerifier, error) {
-	return signerFromKeyOptsWithSVOpts(ctx, certPath, certChainPath, ko)
 }
 
 type SignerVerifier struct {

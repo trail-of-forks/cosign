@@ -608,6 +608,8 @@ github.com/shibumi/go-pathspec v1.3.0 h1:QUyMZhFo0Md5B8zV8x2tesohbb5kfbpTi9rBnKh
 github.com/shibumi/go-pathspec v1.3.0/go.mod h1:Xutfslp817l2I1cZvgcfeMQJG5QnU2lh5tVaaMCl3jE=
 github.com/sigstore/fulcio v1.4.3 h1:9JcUCZjjVhRF9fmhVuz6i1RyhCc/EGCD7MOl+iqCJLQ=
 github.com/sigstore/fulcio v1.4.3/go.mod h1:BQPWo7cfxmJwgaHlphUHUpFkp5+YxeJes82oo39m5og=
+github.com/sigstore/protobuf-specs v0.3.0-beta.2 h1:neHS0O1z7qz4q21vyXqSaKuKYxA0upzJERT88NrgYlM=
+github.com/sigstore/protobuf-specs v0.3.0-beta.2/go.mod h1:ynKzXpqr3dUj2Xk9O/5ZUhjnpi0F53DNi5AdH6pS3jc=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.1 h1:rEDdUefulkIQaMJyzLwtgPDLNXBIltBABiFYfb0YmgQ=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.1/go.mod h1:RCdYCc1IxCYWzh2IdzdA6Yf7JIY0cMRqH08fpQYechw=
 github.com/sigstore/sigstore/pkg/signature/kms/azure v1.8.1 h1:DvRWG99QGWZC5mp42SEde2Xke/Q384Idnj2da7yB+Mk=
@@ -672,10 +674,6 @@ github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399/go.mod h1:LdwHT
 github.com/tjfoc/gmsm v1.3.2/go.mod h1:HaUcFuY0auTiaHB9MHFGCPx5IaLhTUd2atbCFBQXn9w=
 github.com/tjfoc/gmsm v1.4.1 h1:aMe1GlZb+0bLjn+cKTPEvvn9oUEBlJitaZiiBwsbgho=
 github.com/tjfoc/gmsm v1.4.1/go.mod h1:j4INPkHWMrhJb38G+J6W4Tw0AbuN8Thu3PbdVYhVcTE=
-github.com/trail-of-forks/rekor v0.0.0-20240129163653-3ac4c89bd056 h1:jTVzEjC2Mm5x9mnZwKyspP7ygDyP1BiZHleUvh81V4Y=
-github.com/trail-of-forks/rekor v0.0.0-20240129163653-3ac4c89bd056/go.mod h1:KMOYGlQZ96wQ0MfdHvVHjp8mM0fA8Lh6sqtwYkXP5YE=
-github.com/trail-of-forks/sigstore v0.0.0-20240129151206-cff4abcde12e h1:EXVlV8GAQ7nct3uYZwga7JVjQ/GfwWAtMKbmYll3sZ8=
-github.com/trail-of-forks/sigstore v0.0.0-20240129151206-cff4abcde12e/go.mod h1:rbZxJoss0Qf/OQeIuyqkQxo9jLKZlyLqOGX0BUaK7/I=
 github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG81+twTK4=
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
 github.com/urfave/negroni v1.0.0 h1:kIimOitoypq34K7TG7DUaJ9kq/N4Ofuwi1sjz0KipXc=

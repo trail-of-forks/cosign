@@ -19,7 +19,6 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	_ "crypto/sha256" // for `crypto.SHA256`
@@ -29,9 +28,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
@@ -69,9 +70,56 @@ func (k *KeysBytes) Password() []byte {
 	return k.password
 }
 
+var ClientAlgorithmsRegistry, _ = signature.NewAlgorithmRegistryConfig([]v1.KnownSignatureAlgorithm{
+	v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256,
+	v1.KnownSignatureAlgorithm_ED25519_PH,
+})
+
+func GetSupportedAlgorithms() []string {
+	// Get the list of supported algorithms from v1.KnownSignatureAlgorithm_name
+	// and sort them alphabetically.
+	algorithms := make([]string, 0, len(v1.KnownSignatureAlgorithm_name))
+	for algorithmId := range v1.KnownSignatureAlgorithm_name {
+		signatureFlag, err := signature.FormatSignatureAlgorithmFlag(v1.KnownSignatureAlgorithm(algorithmId))
+		if err != nil {
+			continue
+		}
+		algorithms = append(algorithms, signatureFlag)
+	}
+	sort.Strings(algorithms)
+	return algorithms
+}
+
 // TODO(jason): Move this to an internal package.
 func GeneratePrivateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	algorithmDetails, err := signature.GetAlgorithmDetails(v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256)
+	if err != nil {
+		return nil, err
+	}
+	key, err := GeneratePrivateKeyWithAlgo(algorithmDetails)
+	return key.(*ecdsa.PrivateKey), err
+}
+
+func GeneratePrivateKeyWithAlgo(signingAlgorithm signature.AlgorithmDetails) (crypto.PrivateKey, error) {
+	switch signingAlgorithm.GetKeyType() {
+	case signature.ECDSA:
+		curve, err := signingAlgorithm.GetECDSACurve()
+		if err != nil {
+			return nil, err
+		}
+		return ecdsa.GenerateKey(*curve, rand.Reader)
+	case signature.ED25519:
+		_, priv, err := ed25519.GenerateKey(rand.Reader)
+		return priv, err
+	case signature.RSA:
+		rsaBits, err := signingAlgorithm.GetRSAKeySize()
+		if err != nil {
+			return nil, err
+		}
+		return rsa.GenerateKey(rand.Reader, int(rsaBits))
+	default:
+		return nil, fmt.Errorf("unsupported signing algorithm: %s", signingAlgorithm)
+	}
 }
 
 // TODO(jason): Move this to the only place it's used in cmd/cosign/cli/importkeypair, and unexport it.
@@ -182,13 +230,27 @@ func marshalKeyPair(ptype string, keypair Keys, pf PassFunc) (key *KeysBytes, er
 
 // TODO(jason): Move this to an internal package.
 func GenerateKeyPair(pf PassFunc) (*KeysBytes, error) {
-	priv, err := GeneratePrivateKey()
+	algorithmDetails, err := signature.GetAlgorithmDetails(v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256)
 	if err != nil {
 		return nil, err
 	}
 
+	return GenerateKeyPairWithAlgo(pf, algorithmDetails)
+}
+
+func GenerateKeyPairWithAlgo(pf PassFunc, signatureAlgorithm signature.AlgorithmDetails) (*KeysBytes, error) {
+	priv, err := GeneratePrivateKeyWithAlgo(signatureAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+
+	privSigner, ok := priv.(crypto.Signer)
+	if !ok {
+		return nil, fmt.Errorf("unsupported private key type: %T", priv)
+	}
+
 	// Emit SIGSTORE keys by default
-	return marshalKeyPair(SigstorePrivateKeyPemType, Keys{priv, priv.Public()}, pf)
+	return marshalKeyPair(SigstorePrivateKeyPemType, Keys{priv, privSigner.Public()}, pf)
 }
 
 // TODO(jason): Move this to an internal package.

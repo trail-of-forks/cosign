@@ -16,6 +16,12 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +29,7 @@ import (
 // The new output-certificate flag is only in use when COSIGN_EXPERIMENTAL is enabled
 type SignBlobOptions struct {
 	Key                  string
+	SigningAlgorithm     string
 	Base64Output         bool
 	Output               string // deprecated: TODO remove when the output flag is fully deprecated
 	OutputSignature      string // TODO: this should be the root output file arg.
@@ -56,6 +63,11 @@ func (o *SignBlobOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.Key, "key", "",
 		"path to the private key file, KMS URI or Kubernetes Secret")
 	_ = cmd.Flags().SetAnnotation("key", cobra.BashCompFilenameExt, []string{})
+
+	keyAlgorithmTypes := cosign.GetSupportedAlgorithms()
+	keyAlgorithmHelp := fmt.Sprintf("signing algorithm to use for signing/hashing (allowed %s)", strings.Join(keyAlgorithmTypes, ", "))
+	defaultKeyFlag, _ := signature.FormatSignatureAlgorithmFlag(v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256)
+	cmd.Flags().StringVar(&o.SigningAlgorithm, "signing-algorithm", defaultKeyFlag, keyAlgorithmHelp)
 
 	cmd.Flags().BoolVar(&o.Base64Output, "b64", true,
 		"whether to base64 encode the output")

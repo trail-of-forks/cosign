@@ -34,6 +34,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/kubernetes"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/kms"
 )
 
@@ -43,7 +44,7 @@ var (
 )
 
 // nolint
-func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal string, args []string) error {
+func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal string, signatureAlgorithmName string, args []string) error {
 	privateKeyFileName := outputKeyPrefixVal + ".key"
 	publicKeyFileName := outputKeyPrefixVal + ".pub"
 
@@ -86,7 +87,16 @@ func GenerateKeyPairCmd(ctx context.Context, kmsVal string, outputKeyPrefixVal s
 		return fmt.Errorf("undefined provider: %s", provider)
 	}
 
-	keys, err := cosign.GenerateKeyPair(GetPass)
+	signatureAlgorithm, err := signature.ParseSignatureAlgorithmFlag(signatureAlgorithmName)
+	if err != nil {
+		return err
+	}
+	algorithmDetails, err := signature.GetAlgorithmDetails(signatureAlgorithm)
+	if err != nil {
+		return err
+	}
+
+	keys, err := cosign.GenerateKeyPairWithAlgo(GetPass, algorithmDetails)
 	if err != nil {
 		return err
 	}
