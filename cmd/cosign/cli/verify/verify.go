@@ -42,6 +42,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign/pkcs11key"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
+	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
@@ -74,6 +75,7 @@ type VerifyCommand struct {
 	SignatureRef                 string
 	PayloadRef                   string
 	HashAlgorithm                crypto.Hash
+	SigningAlgorithm             string
 	LocalImage                   bool
 	NameOptions                  []name.Option
 	Offline                      bool
@@ -215,9 +217,23 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 		}
 	}
 
-	svOpts := []signature.LoadOption{
-		signatureoptions.WithHash(crypto.SHA256),
-		signatureoptions.WithED25519ph(),
+	var svOpts []signature.LoadOption
+	signingAlgorithm, err := signature.ParseSignatureAlgorithmFlag(c.SigningAlgorithm)
+	if err != nil {
+		// Default to ECDSA_SHA2_256_NISTP256 if no algorithm is specified
+		signingAlgorithm = pb_go_v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256
+	}
+
+	algorithmDetails, err := signature.GetAlgorithmDetails(signingAlgorithm)
+	if err != nil {
+		return err
+	}
+	hashAlgorithm := algorithmDetails.GetHashType()
+	svOpts = []signature.LoadOption{
+		signatureoptions.WithHash(hashAlgorithm),
+	}
+	if algorithmDetails.GetSignatureAlgorithm() == pb_go_v1.KnownSignatureAlgorithm_ED25519_PH {
+		svOpts = append(svOpts, signatureoptions.WithED25519ph())
 	}
 
 	// Keys are optional!

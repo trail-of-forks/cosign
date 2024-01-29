@@ -16,9 +16,15 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign"
+	cosign_v2 "github.com/sigstore/cosign/v2/pkg/cosign"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 type CommonVerifyOptions struct {
@@ -56,13 +62,14 @@ func (o *CommonVerifyOptions) AddFlags(cmd *cobra.Command) {
 
 // VerifyOptions is the top level wrapper for the `verify` command.
 type VerifyOptions struct {
-	Key          string
-	CheckClaims  bool
-	Attachment   string
-	Output       string
-	SignatureRef string
-	PayloadRef   string
-	LocalImage   bool
+	Key              string
+	SigningAlgorithm string
+	CheckClaims      bool
+	Attachment       string
+	Output           string
+	SignatureRef     string
+	PayloadRef       string
+	LocalImage       bool
 
 	CommonVerifyOptions CommonVerifyOptions
 	SecurityKey         SecurityKeyOptions
@@ -89,6 +96,11 @@ func (o *VerifyOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.Key, "key", "",
 		"path to the public key file, KMS URI or Kubernetes Secret")
 	_ = cmd.Flags().SetAnnotation("key", cobra.BashCompFilenameExt, []string{})
+
+	keyAlgorithmTypes := cosign_v2.GetSupportedAlgorithms()
+	keyAlgorithmHelp := fmt.Sprintf("accepted signing algorithm to use for verifying the signature (allowed %s)", strings.Join(keyAlgorithmTypes, ", "))
+	defaultKeyFlag, _ := signature.FormatSignatureAlgorithmFlag(v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256)
+	cmd.Flags().StringVar(&o.SigningAlgorithm, "signing-algorithm", defaultKeyFlag, keyAlgorithmHelp)
 
 	cmd.Flags().BoolVar(&o.CheckClaims, "check-claims", true,
 		"whether to check the claims found")
@@ -154,9 +166,10 @@ func (o *VerifyAttestationOptions) AddFlags(cmd *cobra.Command) {
 
 // VerifyBlobOptions is the top level wrapper for the `verify blob` command.
 type VerifyBlobOptions struct {
-	Key        string
-	Signature  string
-	BundlePath string
+	Key              string
+	SigningAlgorithm string
+	Signature        string
+	BundlePath       string
 
 	SecurityKey         SecurityKeyOptions
 	CertVerify          CertVerifyOptions
@@ -177,6 +190,11 @@ func (o *VerifyBlobOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.Key, "key", "",
 		"path to the public key file, KMS URI or Kubernetes Secret")
+
+	keyAlgorithmTypes := cosign_v2.GetSupportedAlgorithms()
+	keyAlgorithmHelp := fmt.Sprintf("accepted signing algorithm to use for verifying the signature (allowed %s)", strings.Join(keyAlgorithmTypes, ", "))
+	defaultKeyFlag, _ := signature.FormatSignatureAlgorithmFlag(v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256)
+	cmd.Flags().StringVar(&o.SigningAlgorithm, "signing-algorithm", defaultKeyFlag, keyAlgorithmHelp)
 
 	cmd.Flags().StringVar(&o.Signature, "signature", "",
 		"signature content or path or remote URL")
