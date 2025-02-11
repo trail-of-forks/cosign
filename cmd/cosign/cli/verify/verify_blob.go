@@ -46,6 +46,7 @@ import (
 	sgverify "github.com/sigstore/sigstore-go/pkg/verify"
 
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
 )
 
@@ -111,12 +112,17 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 		NewBundleFormat:              c.KeyOpts.NewBundleFormat || checkNewBundle(c.BundlePath),
 	}
 
+	svOpts := []signature.LoadOption{
+		signatureoptions.WithHash(crypto.SHA256),
+		signatureoptions.WithED25519ph(),
+	}
+
 	// Keys are optional!
 	var cert *x509.Certificate
 	opts := make([]static.Option, 0)
 	switch {
 	case c.KeyRef != "":
-		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, c.KeyRef)
+		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, c.KeyRef, svOpts...)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -244,7 +250,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 			bundleCert, err := loadCertFromPEM(certBytes)
 			if err != nil {
 				// check if cert is actually a public key
-				co.SigVerifier, err = sigs.LoadPublicKeyRawWithOpts(certBytes, signatureoptions.WithHash(crypto.SHA256))
+				co.SigVerifier, err = sigs.LoadPublicKeyRawWithOpts(certBytes, svOpts...)
 				if err != nil {
 					return fmt.Errorf("loading verifier from bundle: %w", err)
 				}
@@ -331,7 +337,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 	if err != nil {
 		return err
 	}
-	if _, err = cosign.VerifyBlobSignatureWithOpts(ctx, signature, co); err != nil {
+	if _, err = cosign.VerifyBlobSignatureWithOpts(ctx, signature, co, svOpts...); err != nil {
 		return err
 	}
 

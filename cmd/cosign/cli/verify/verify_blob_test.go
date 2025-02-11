@@ -22,6 +22,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -232,11 +233,12 @@ func testVerifyBlobLeafPriv(t *testing.T, leafPriv crypto.PrivateKey, hashFunc c
 		bundlePath string
 		newBundle  bool
 		// The rekor entry response when Rekor is enabled
-		rekorEntry     []*models.LogEntry
-		skipTlogVerify bool
-		shouldErr      bool
-		tsPath         string
-		tsChainPath    string
+		rekorEntry           []*models.LogEntry
+		skipTlogVerify       bool
+		shouldErr            bool
+		tsPath               string
+		tsChainPath          string
+		skipNonDeterministic bool
 	}{
 		{
 			name:           "valid signature with public key",
@@ -305,7 +307,8 @@ func testVerifyBlobLeafPriv(t *testing.T, leafPriv crypto.PrivateKey, hashFunc c
 			key:       pubKeyBytes,
 			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes)),
 				pubKeyBytes, true, hashFunc),
-			shouldErr: true,
+			shouldErr:            true,
+			skipNonDeterministic: true,
 		},
 		{
 			name:      "valid signature with public key - bad bundle msg & signature mismatch",
@@ -373,7 +376,8 @@ func testVerifyBlobLeafPriv(t *testing.T, leafPriv crypto.PrivateKey, hashFunc c
 			cert:      unexpiredLeafCert,
 			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes)),
 				unexpiredCertPem, true, hashFunc),
-			shouldErr: true,
+			shouldErr:            true,
+			skipNonDeterministic: true,
 		},
 		{
 			name:      "valid signature with unexpired certificate - bad bundle msg & signature mismatch",
@@ -564,6 +568,13 @@ func testVerifyBlobLeafPriv(t *testing.T, leafPriv crypto.PrivateKey, hashFunc c
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
+			if tt.skipNonDeterministic {
+				switch signer.(type) {
+				case *signature.ED25519phSignerVerifier:
+				case *signature.RSAPKCS1v15SignerVerifier:
+					t.Skip("Skipping test for " + tt.name)
+				}
+			}
 			entries := make([]models.LogEntry, 0)
 			for _, entry := range tt.rekorEntry {
 				entries = append(entries, *entry)
@@ -651,6 +662,32 @@ func TestVerifyBlob(t *testing.T) {
 			skip:     false,
 		},
 		{
+			description: "ECDSA P384 key",
+			leafPriv: func() crypto.PrivateKey {
+				priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return priv
+			}(),
+			hashFunc: crypto.SHA384,
+			svOpts:   []signature.LoadOption{signatureoptions.WithHash(crypto.SHA384)},
+			skip:     false,
+		},
+		{
+			description: "ECDSA P521 key",
+			leafPriv: func() crypto.PrivateKey {
+				priv, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return priv
+			}(),
+			hashFunc: crypto.SHA512,
+			svOpts:   []signature.LoadOption{signatureoptions.WithHash(crypto.SHA512)},
+			skip:     false,
+		},
+		{
 			description: "Ed25519 key",
 			leafPriv: func() crypto.PrivateKey {
 				_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -661,7 +698,33 @@ func TestVerifyBlob(t *testing.T) {
 			}(),
 			hashFunc: crypto.SHA512,
 			svOpts:   []signature.LoadOption{signatureoptions.WithED25519ph()},
-			skip:     true, // TODO: Remove this once VerifyBlob command supports ED25519ph
+			skip:     false,
+		},
+		{
+			description: "RSA 2048 SHA256 key",
+			leafPriv: func() crypto.PrivateKey {
+				priv, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return priv
+			}(),
+			hashFunc: crypto.SHA256,
+			svOpts:   []signature.LoadOption{signatureoptions.WithHash(crypto.SHA256)},
+			skip:     false,
+		},
+		{
+			description: "RSA 3072 SHA256 key",
+			leafPriv: func() crypto.PrivateKey {
+				priv, err := rsa.GenerateKey(rand.Reader, 3072)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return priv
+			}(),
+			hashFunc: crypto.SHA256,
+			svOpts:   []signature.LoadOption{},
+			skip:     false,
 		},
 	}
 

@@ -18,7 +18,6 @@ package verify
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -46,6 +45,7 @@ import (
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 	sgverify "github.com/sigstore/sigstore-go/pkg/verify"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
 )
 
@@ -118,12 +118,17 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 		NewBundleFormat:              c.KeyOpts.NewBundleFormat || checkNewBundle(c.BundlePath),
 	}
 
+	svOpts := []signature.LoadOption{
+		signatureoptions.WithHash(crypto.SHA256),
+		signatureoptions.WithED25519ph(),
+	}
+
 	// Keys are optional!
 	var cert *x509.Certificate
 	opts := make([]static.Option, 0)
 	switch {
 	case c.KeyRef != "":
-		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, c.KeyRef)
+		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, c.KeyRef, svOpts...)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -170,7 +175,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 			return err
 		}
 
-		payload = internal.NewHashReader(f, sha256.New())
+		payload = internal.NewHashReader(f, crypto.SHA256)
 		if _, err := io.ReadAll(&payload); err != nil {
 			return err
 		}
@@ -284,7 +289,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 			bundleCert, err := loadCertFromPEM(certBytes)
 			if err != nil {
 				// check if cert is actually a public key
-				co.SigVerifier, err = sigs.LoadPublicKeyRawWithOpts(certBytes, signatureoptions.WithHash(crypto.SHA256))
+				co.SigVerifier, err = sigs.LoadPublicKeyRawWithOpts(certBytes, svOpts...)
 				if err != nil {
 					return fmt.Errorf("loading verifier from bundle: %w", err)
 				}
@@ -364,7 +369,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 	// TODO: This verifier only supports verification of a single signer/signature on
 	// the envelope. Either have the verifier validate that only one signature exists,
 	// or use a multi-signature verifier.
-	if _, err = cosign.VerifyBlobAttestationWithOpts(ctx, signature, h, co); err != nil {
+	if _, err = cosign.VerifyBlobAttestationWithOpts(ctx, signature, h, co, svOpts...); err != nil {
 		return err
 	}
 

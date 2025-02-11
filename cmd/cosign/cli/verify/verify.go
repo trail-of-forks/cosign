@@ -183,11 +183,16 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 		}
 	}
 
+	svOpts := []signature.LoadOption{
+		signatureoptions.WithHash(crypto.SHA256),
+		signatureoptions.WithED25519ph(),
+	}
+
 	// Keys are optional!
 	var pubKey signature.Verifier
 	switch {
 	case keyRef != "":
-		pubKey, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, keyRef, signatureoptions.WithHash(c.HashAlgorithm))
+		pubKey, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, keyRef, svOpts...)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -231,13 +236,13 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 			if err != nil {
 				return err
 			}
-			pubKey, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithChain(chain))
+			pubKey, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithChain(chain), cosign.WithSignerVerifierOptions(svOpts...))
 			if err != nil {
 				return err
 			}
 		case co.RootCerts != nil:
 			// Verify certificate with root (and if given, intermediate) certificate
-			pubKey, err = cosign.ValidateAndUnpackCert(cert, co)
+			pubKey, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithSignerVerifierOptions(svOpts...))
 			if err != nil {
 				return err
 			}
@@ -268,7 +273,7 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 
 	for _, img := range images {
 		if c.LocalImage {
-			verified, bundleVerified, err := cosign.VerifyLocalImageSignaturesWithOpts(ctx, img, co)
+			verified, bundleVerified, err := cosign.VerifyLocalImageSignaturesWithOpts(ctx, img, co, svOpts...)
 			if err != nil {
 				return err
 			}
@@ -284,7 +289,7 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 				return fmt.Errorf("resolving attachment type %s for image %s: %w", c.Attachment, img, err)
 			}
 
-			verified, bundleVerified, err := cosign.VerifyImageSignaturesWithOpts(ctx, ref, co)
+			verified, bundleVerified, err := cosign.VerifyImageSignaturesWithOpts(ctx, ref, co, svOpts...)
 			if err != nil {
 				return cosignError.WrapError(err)
 			}

@@ -17,8 +17,11 @@ package cosign
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
@@ -349,7 +352,7 @@ func verifyOCISignature(ctx context.Context, verifier signature.Verifier, sig pa
 	if err != nil {
 		return err
 	}
-	signature, err := base64.StdEncoding.DecodeString(b64sig)
+	decodedSignature, err := base64.StdEncoding.DecodeString(b64sig)
 	if err != nil {
 		return err
 	}
@@ -357,7 +360,33 @@ func verifyOCISignature(ctx context.Context, verifier signature.Verifier, sig pa
 	if err != nil {
 		return err
 	}
-	return verifier.VerifySignature(bytes.NewReader(signature), bytes.NewReader(payload), options.WithContext(ctx))
+	// For compatibility reasons, if ED25519ph is used, we try both ED25519 and ED25519ph.
+	// Refusing to verify ED25519 signatures (used e.g. by rekord entries) would break compatibility.
+	// The signature algorithm to use should be uniquely determined before this point.
+	verificationErr := verifier.VerifySignature(bytes.NewReader(decodedSignature), bytes.NewReader(payload), options.WithContext(ctx))
+	if verificationErr == nil {
+		return nil
+	}
+
+	switch verifier.(type) {
+	case *signature.ED25519phVerifier:
+		publicKey, err := verifier.PublicKey()
+		if err != nil {
+			return err
+		}
+
+		if edPublicKey, ok := publicKey.(ed25519.PublicKey); ok {
+			altVerifier, err := signature.LoadED25519Verifier(edPublicKey)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(os.Stderr, "Failed to verify signature with ED25519ph, falling back to ED25519 for backward compatibility.\n")
+			verificationErr = altVerifier.VerifySignature(bytes.NewReader(decodedSignature), bytes.NewReader(payload), options.WithContext(ctx))
+		}
+	}
+
+	return verificationErr
 }
 
 // ValidateAndUnpackCert creates a Verifier from a certificate. Verifies that the
@@ -1285,12 +1314,23 @@ func VerifyBundle(sig oci.Signature, co *CheckOpts) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("computing bundle hash: %w", err)
 	}
-	h := sha256.Sum256(payload)
-	payloadHash := hex.EncodeToString(h[:])
 
-	if alg != "sha256" {
+	var payloadHash string
+	switch alg.HashFunc() {
+	case crypto.SHA256:
+		h := sha256.Sum256(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	case crypto.SHA384:
+		h := sha512.Sum384(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	case crypto.SHA512:
+		h := sha512.Sum512(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	default:
 		return false, fmt.Errorf("unexpected algorithm: %q", alg)
-	} else if bundlehash != payloadHash {
+	}
+
+	if bundlehash != payloadHash {
 		return false, fmt.Errorf("matching bundle to payload: bundle=%q, payload=%q", bundlehash, payloadHash)
 	}
 	return true, nil
@@ -1411,25 +1451,36 @@ func extractEntryImpl(bundleBody string) (rekor_types.EntryImpl, error) {
 	return rekor_types.UnmarshalEntry(pe)
 }
 
-func bundleHash(bundleBody, _ string) (string, string, error) {
+func hashAlgorithmToCryptoHash(hashAlgorithm string) crypto.Hash {
+	switch hashAlgorithm {
+	case "sha384":
+		return crypto.SHA384
+	case "sha512":
+		return crypto.SHA512
+	default:
+		return crypto.SHA256
+	}
+}
+
+func bundleHash(bundleBody, _ string) (crypto.Hash, string, error) {
 	ei, err := extractEntryImpl(bundleBody)
 	if err != nil {
-		return "", "", err
+		return crypto.Hash(0), "", err
 	}
 
 	switch entry := ei.(type) {
 	case *dsse_v001.V001Entry:
-		return *entry.DSSEObj.EnvelopeHash.Algorithm, *entry.DSSEObj.EnvelopeHash.Value, nil
+		return hashAlgorithmToCryptoHash(*entry.DSSEObj.EnvelopeHash.Algorithm), *entry.DSSEObj.EnvelopeHash.Value, nil
 	case *hashedrekord_v001.V001Entry:
-		return *entry.HashedRekordObj.Data.Hash.Algorithm, *entry.HashedRekordObj.Data.Hash.Value, nil
+		return hashAlgorithmToCryptoHash(*entry.HashedRekordObj.Data.Hash.Algorithm), *entry.HashedRekordObj.Data.Hash.Value, nil
 	case *intoto_v001.V001Entry:
-		return *entry.IntotoObj.Content.Hash.Algorithm, *entry.IntotoObj.Content.Hash.Value, nil
+		return hashAlgorithmToCryptoHash(*entry.IntotoObj.Content.Hash.Algorithm), *entry.IntotoObj.Content.Hash.Value, nil
 	case *intoto_v002.V002Entry:
-		return *entry.IntotoObj.Content.Hash.Algorithm, *entry.IntotoObj.Content.Hash.Value, nil
+		return hashAlgorithmToCryptoHash(*entry.IntotoObj.Content.Hash.Algorithm), *entry.IntotoObj.Content.Hash.Value, nil
 	case *rekord_v001.V001Entry:
-		return *entry.RekordObj.Data.Hash.Algorithm, *entry.RekordObj.Data.Hash.Value, nil
+		return hashAlgorithmToCryptoHash(*entry.RekordObj.Data.Hash.Algorithm), *entry.RekordObj.Data.Hash.Value, nil
 	default:
-		return "", "", errors.New("unsupported type")
+		return crypto.Hash(0), "", errors.New("unsupported type")
 	}
 }
 

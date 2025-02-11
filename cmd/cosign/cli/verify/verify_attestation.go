@@ -17,6 +17,7 @@ package verify
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,6 +38,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/policy"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
+	"github.com/sigstore/sigstore/pkg/signature"
+	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
 )
 
 // VerifyAttestationCommand verifies a signature on a supplied container image
@@ -156,10 +159,15 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 
 	keyRef := c.KeyRef
 
+	svOpts := []signature.LoadOption{
+		signatureoptions.WithHash(crypto.SHA256),
+		signatureoptions.WithED25519ph(),
+	}
+
 	// Keys are optional!
 	switch {
 	case keyRef != "":
-		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, keyRef)
+		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithOpts(ctx, keyRef, svOpts...)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -192,7 +200,7 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 			if err != nil {
 				return fmt.Errorf("getting Fulcio intermediates: %w", err)
 			}
-			co.SigVerifier, err = cosign.ValidateAndUnpackCert(cert, co)
+			co.SigVerifier, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithSignerVerifierOptions(svOpts...))
 			if err != nil {
 				return fmt.Errorf("creating certificate verifier: %w", err)
 			}
@@ -202,7 +210,7 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 			if err != nil {
 				return err
 			}
-			co.SigVerifier, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithChain(chain))
+			co.SigVerifier, err = cosign.ValidateAndUnpackCertWithOpts(cert, co, cosign.WithChain(chain), cosign.WithSignerVerifierOptions(svOpts...))
 			if err != nil {
 				return fmt.Errorf("creating certificate verifier: %w", err)
 			}
@@ -231,7 +239,7 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 		var bundleVerified bool
 
 		if c.LocalImage {
-			verified, bundleVerified, err = cosign.VerifyLocalImageAttestationsWithOpts(ctx, imageRef, co)
+			verified, bundleVerified, err = cosign.VerifyLocalImageAttestationsWithOpts(ctx, imageRef, co, svOpts...)
 			if err != nil {
 				return err
 			}
@@ -241,7 +249,7 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 				return err
 			}
 
-			verified, bundleVerified, err = cosign.VerifyImageAttestationsWithOpts(ctx, ref, co)
+			verified, bundleVerified, err = cosign.VerifyImageAttestationsWithOpts(ctx, ref, co, svOpts...)
 			if err != nil {
 				return err
 			}
