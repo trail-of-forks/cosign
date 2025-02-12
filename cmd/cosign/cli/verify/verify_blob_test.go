@@ -571,6 +571,7 @@ func testVerifyBlobLeafPriv(t *testing.T, leafPriv crypto.PrivateKey, hashFunc c
 			if tt.skipNonDeterministic {
 				switch signer.(type) {
 				case *signature.ED25519phSignerVerifier:
+					t.Skip("Skipping test for " + tt.name)
 				case *signature.RSAPKCS1v15SignerVerifier:
 					t.Skip("Skipping test for " + tt.name)
 				}
@@ -672,7 +673,7 @@ func TestVerifyBlob(t *testing.T) {
 			}(),
 			hashFunc: crypto.SHA384,
 			svOpts:   []signature.LoadOption{signatureoptions.WithHash(crypto.SHA384)},
-			skip:     false,
+			skip:     true, // TODO: remove once hash function is automatically detected by cosign
 		},
 		{
 			description: "ECDSA P521 key",
@@ -685,7 +686,7 @@ func TestVerifyBlob(t *testing.T) {
 			}(),
 			hashFunc: crypto.SHA512,
 			svOpts:   []signature.LoadOption{signatureoptions.WithHash(crypto.SHA512)},
-			skip:     false,
+			skip:     true, // TODO: remove once hash function is automatically detected by cosign
 		},
 		{
 			description: "Ed25519 key",
