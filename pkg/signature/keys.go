@@ -58,21 +58,46 @@ func VerifierForKeyRef(ctx context.Context, keyRef string, hashAlgorithm crypto.
 	}
 
 	raw, err := blob.LoadFileOrURL(keyRef)
-
 	if err != nil {
 		return nil, err
 	}
 
-	// PEM encoded file.
-	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(raw)
-	if err != nil {
-		return nil, fmt.Errorf("pem to public key: %w", err)
-	}
-
-	return signature.LoadVerifier(pubKey, hashAlgorithm)
+	return LoadPublicKeyRaw(raw, hashAlgorithm)
 }
 
-func loadKey(keyPath string, pf cosign.PassFunc) (signature.SignerVerifier, error) {
+// VerifierForKeyRefWithAlgorithmDetails parses the given keyRef, loads the key
+// and returns an appropriate verifier according to the algorithmDetails
+func VerifierForKeyRefWithAlgorithmDetails(ctx context.Context, keyRef string, algorithmDetails *signature.AlgorithmDetails) (verifier signature.Verifier, err error) {
+	hashAlgorithm := crypto.SHA256
+	if algorithmDetails != nil {
+		hashAlgorithm = (*algorithmDetails).GetHashType()
+	}
+
+	// The key could be plaintext, in a file, at a URL, or in KMS.
+	var perr *kms.ProviderNotFoundError
+	kmsKey, err := kms.Get(ctx, keyRef, hashAlgorithm)
+	switch {
+	case err == nil:
+		// KMS specified
+		return kmsKey, nil
+	case errors.As(err, &perr):
+		// We can ignore ProviderNotFoundError; that just means the keyRef
+		// didn't match any of the KMS schemes.
+	default:
+		// But other errors indicate something more insidious; pass those
+		// through.
+		return nil, err
+	}
+
+	raw, err := blob.LoadFileOrURL(keyRef)
+	if err != nil {
+		return nil, err
+	}
+
+	return LoadPublicKeyRawWithAlgorithmDetails(raw, algorithmDetails)
+}
+
+func loadKey(keyPath string, pf cosign.PassFunc, algorithmDetails *signature.AlgorithmDetails) (signature.SignerVerifier, error) {
 	kb, err := blob.LoadFileOrURL(keyPath)
 	if err != nil {
 		return nil, err
@@ -84,7 +109,7 @@ func loadKey(keyPath string, pf cosign.PassFunc) (signature.SignerVerifier, erro
 			return nil, err
 		}
 	}
-	return cosign.LoadPrivateKey(kb, pass)
+	return cosign.LoadPrivateKeyWithAlgorithmDetails(kb, pass, algorithmDetails)
 }
 
 // LoadPublicKeyRaw loads a verifier from a PEM-encoded public key
@@ -93,14 +118,27 @@ func LoadPublicKeyRaw(raw []byte, hashAlgorithm crypto.Hash) (signature.Verifier
 	if err != nil {
 		return nil, err
 	}
+
 	return signature.LoadVerifier(pub, hashAlgorithm)
+}
+
+// LoadPublicKeyRawWithAlgorithmDetails loads a verifier from a PEM-encoded
+// public key, using the algorithmDetails to understand how to use the key for
+// verification.
+func LoadPublicKeyRawWithAlgorithmDetails(raw []byte, algorithmDetails *signature.AlgorithmDetails) (signature.Verifier, error) {
+	pub, err := cryptoutils.UnmarshalPEMToPublicKey(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	return cosign.LoadPublicKeyWithAlgorithmDetails(pub, algorithmDetails)
 }
 
 func SignerFromKeyRef(ctx context.Context, keyRef string, pf cosign.PassFunc) (signature.Signer, error) {
 	return SignerVerifierFromKeyRef(ctx, keyRef, pf)
 }
 
-func SignerVerifierFromKeyRef(ctx context.Context, keyRef string, pf cosign.PassFunc) (signature.SignerVerifier, error) {
+func SignerVerifierFromKeyRefWithAlgorithmDetails(ctx context.Context, keyRef string, pf cosign.PassFunc, algorithmDetails *signature.AlgorithmDetails) (signature.SignerVerifier, error) {
 	switch {
 	case strings.HasPrefix(keyRef, pkcs11key.ReferenceScheme):
 		pkcs11UriConfig := pkcs11key.NewPkcs11UriConfig()
@@ -129,7 +167,7 @@ func SignerVerifierFromKeyRef(ctx context.Context, keyRef string, pf cosign.Pass
 		}
 
 		if len(s.Data) > 0 {
-			return cosign.LoadPrivateKey(s.Data["cosign.key"], s.Data["cosign.password"])
+			return cosign.LoadPrivateKeyWithAlgorithmDetails(s.Data["cosign.key"], s.Data["cosign.password"], algorithmDetails)
 		}
 	case strings.HasPrefix(keyRef, gitlab.ReferenceScheme):
 		split := strings.Split(keyRef, "://")
@@ -150,7 +188,7 @@ func SignerVerifierFromKeyRef(ctx context.Context, keyRef string, pf cosign.Pass
 			return nil, err
 		}
 
-		return cosign.LoadPrivateKey([]byte(pk), []byte(pass))
+		return cosign.LoadPrivateKeyWithAlgorithmDetails([]byte(pk), []byte(pass), algorithmDetails)
 	}
 
 	if strings.Contains(keyRef, "://") {
@@ -165,11 +203,15 @@ func SignerVerifierFromKeyRef(ctx context.Context, keyRef string, pf cosign.Pass
 		// ProviderNotFoundError is okay; loadKey handles other URL schemes
 	}
 
-	return loadKey(keyRef, pf)
+	return loadKey(keyRef, pf, algorithmDetails)
+}
+
+func SignerVerifierFromKeyRef(ctx context.Context, keyRef string, pf cosign.PassFunc) (signature.SignerVerifier, error) {
+	return SignerVerifierFromKeyRefWithAlgorithmDetails(ctx, keyRef, pf, nil)
 }
 
 func PublicKeyFromKeyRef(ctx context.Context, keyRef string) (signature.Verifier, error) {
-	return PublicKeyFromKeyRefWithHashAlgo(ctx, keyRef, crypto.SHA256)
+	return PublicKeyFromKeyRefWithAlgorithm(ctx, keyRef, nil)
 }
 
 func PublicKeyFromKeyRefWithHashAlgo(ctx context.Context, keyRef string, hashAlgorithm crypto.Hash) (signature.Verifier, error) {
@@ -224,6 +266,60 @@ func PublicKeyFromKeyRefWithHashAlgo(ctx context.Context, keyRef string, hashAlg
 	}
 
 	return VerifierForKeyRef(ctx, keyRef, hashAlgorithm)
+}
+
+func PublicKeyFromKeyRefWithAlgorithm(ctx context.Context, keyRef string, algorithmDetails *signature.AlgorithmDetails) (signature.Verifier, error) {
+	if strings.HasPrefix(keyRef, kubernetes.KeyReference) {
+		s, err := kubernetes.GetKeyPairSecret(ctx, keyRef)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(s.Data) > 0 {
+			return LoadPublicKeyRawWithAlgorithmDetails(s.Data["cosign.pub"], algorithmDetails)
+		}
+	}
+
+	if strings.HasPrefix(keyRef, pkcs11key.ReferenceScheme) {
+		pkcs11UriConfig := pkcs11key.NewPkcs11UriConfig()
+		err := pkcs11UriConfig.Parse(keyRef)
+		if err != nil {
+			return nil, fmt.Errorf("parsing pkcs11 uri): %w", err)
+		}
+
+		// Since we'll be verifying a signature, we do not need to set askForPinIsNeeded to true
+		// because we only need access to the public key.
+		sk, err := pkcs11key.GetKeyWithURIConfig(pkcs11UriConfig, false)
+		if err != nil {
+			return nil, fmt.Errorf("opening pkcs11 token key: %w", err)
+		}
+
+		v, err := sk.Verifier()
+		if err != nil {
+			return nil, fmt.Errorf("initializing pkcs11 token verifier: %w", err)
+		}
+
+		return v, nil
+	} else if strings.HasPrefix(keyRef, gitlab.ReferenceScheme) {
+		split := strings.Split(keyRef, "://")
+
+		if len(split) < 2 {
+			return nil, errors.New("could not parse scheme, use <scheme>://<ref> format")
+		}
+
+		provider, targetRef := split[0], split[1]
+
+		pubKey, err := git.GetProvider(provider).GetSecret(ctx, targetRef, "COSIGN_PUBLIC_KEY")
+		if err != nil {
+			return nil, err
+		}
+
+		if len(pubKey) > 0 {
+			return LoadPublicKeyRawWithAlgorithmDetails([]byte(pubKey), algorithmDetails)
+		}
+	}
+
+	return VerifierForKeyRefWithAlgorithmDetails(ctx, keyRef, algorithmDetails)
 }
 
 func PublicKeyPem(key signature.PublicKeyProvider, pkOpts ...signature.PublicKeyOption) ([]byte, error) {

@@ -18,7 +18,6 @@ package verify
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -46,6 +45,7 @@ import (
 	sgverify "github.com/sigstore/sigstore-go/pkg/verify"
 
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 func isb64(data []byte) bool {
@@ -96,6 +96,19 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 		}
 	}
 
+	var algorithmDetails *signature.AlgorithmDetails = nil
+	if c.SigningAlgorithm != "" {
+		publikKeyDetails, err := signature.ParseSignatureAlgorithmFlag(c.SigningAlgorithm)
+		if err != nil {
+			return fmt.Errorf("unsupported signing algorithm: %s", c.SigningAlgorithm)
+		}
+		retrievedAlgorithmDetails, err := signature.GetAlgorithmDetails(publikKeyDetails)
+		if err != nil {
+			return fmt.Errorf("unsupported signing algorithm: %s", c.SigningAlgorithm)
+		}
+		algorithmDetails = &retrievedAlgorithmDetails
+	}
+
 	co := &cosign.CheckOpts{
 		CertGithubWorkflowTrigger:    c.CertGithubWorkflowTrigger,
 		CertGithubWorkflowSha:        c.CertGithubWorkflowSHA,
@@ -108,6 +121,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 		IgnoreTlog:                   c.IgnoreTlog,
 		UseSignedTimestamps:          c.TSACertChainPath != "" || c.UseSignedTimestamps,
 		NewBundleFormat:              c.KeyOpts.NewBundleFormat || checkNewBundle(c.BundlePath),
+		AlgorithmDetails:             algorithmDetails,
 	}
 
 	// Keys are optional!
@@ -115,7 +129,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 	opts := make([]static.Option, 0)
 	switch {
 	case c.KeyRef != "":
-		co.SigVerifier, err = sigs.PublicKeyFromKeyRef(ctx, c.KeyRef)
+		co.SigVerifier, err = sigs.PublicKeyFromKeyRefWithAlgorithm(ctx, c.KeyRef, co.AlgorithmDetails)
 		if err != nil {
 			return fmt.Errorf("loading public key: %w", err)
 		}
@@ -243,7 +257,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 			bundleCert, err := loadCertFromPEM(certBytes)
 			if err != nil {
 				// check if cert is actually a public key
-				co.SigVerifier, err = sigs.LoadPublicKeyRaw(certBytes, crypto.SHA256)
+				co.SigVerifier, err = sigs.LoadPublicKeyRawWithAlgorithmDetails(certBytes, co.AlgorithmDetails)
 				if err != nil {
 					return fmt.Errorf("loading verifier from bundle: %w", err)
 				}

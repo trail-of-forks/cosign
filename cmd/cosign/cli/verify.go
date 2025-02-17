@@ -140,6 +140,7 @@ against the transparency log.`,
 				MaxWorkers:                   o.CommonVerifyOptions.MaxWorkers,
 				ExperimentalOCI11:            o.CommonVerifyOptions.ExperimentalOCI11,
 				UseSignedTimestamps:          o.CommonVerifyOptions.UseSignedTimestamps,
+				SigningAlgorithm:             "",
 			}
 
 			if o.CommonVerifyOptions.MaxWorkers == 0 {
@@ -338,6 +339,7 @@ The blob may be specified as a path to a file or - for stdin.`,
 				NewBundleFormat:      o.NewBundleFormat,
 				RFC3161TimestampPath: o.RFC3161TimestampPath,
 				TSACertChainPath:     o.CommonVerifyOptions.TSACertChainPath,
+				SigningAlgorithm:     o.SigningAlgorithm,
 			}
 			verifyBlobCmd := &verify.VerifyBlobCmd{
 				KeyOpts:                      ko,

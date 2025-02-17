@@ -18,6 +18,7 @@ package fulcio
 import (
 	"context"
 	"crypto"
+	"crypto/ed25519"
 	"crypto/x509"
 	"fmt"
 	"net/url"
@@ -34,6 +35,7 @@ import (
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/oauthflow"
 	"github.com/sigstore/sigstore/pkg/signature"
+	signatureoptions "github.com/sigstore/sigstore/pkg/signature/options"
 	"golang.org/x/term"
 )
 
@@ -71,7 +73,15 @@ func getCertForOauthID(sv signature.SignerVerifier, fc api.LegacyClient, connect
 		return nil, err
 	}
 	// Sign the email address as part of the request
-	proof, err := sv.SignMessage(strings.NewReader(tok.Subject))
+	// Default to SHA256 because that's what Fulcio expects, except for ed25519
+	// which can't be used with that
+	opts := []signature.SignOption{}
+	if _, ok := publicKey.(ed25519.PublicKey); ok {
+		opts = append(opts, signatureoptions.WithCryptoSignerOpts(crypto.SHA512))
+	} else {
+		opts = append(opts, signatureoptions.WithCryptoSignerOpts(crypto.SHA256))
+	}
+	proof, err := sv.SignMessage(strings.NewReader(tok.Subject), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +122,7 @@ type Signer struct {
 	signature.SignerVerifier
 }
 
-func NewSigner(ctx context.Context, ko options.KeyOpts, signer signature.SignerVerifier) (*Signer, error) {
+func NewSignerWithAdapter(ctx context.Context, ko options.KeyOpts, signer signature.SignerVerifier, fulcioSigner signature.SignerVerifier) (*Signer, error) {
 	fClient, err := NewClient(ko.FulcioURL)
 	if err != nil {
 		return nil, fmt.Errorf("creating Fulcio client: %w", err)
@@ -167,7 +177,7 @@ func NewSigner(ctx context.Context, ko options.KeyOpts, signer signature.SignerV
 		}
 		flow = flowNormal
 	}
-	Resp, err := GetCert(ctx, signer, idToken, flow, ko.OIDCIssuer, ko.OIDCClientID, ko.OIDCClientSecret, ko.OIDCRedirectURL, fClient) // TODO, use the chain.
+	Resp, err := GetCert(ctx, fulcioSigner, idToken, flow, ko.OIDCIssuer, ko.OIDCClientID, ko.OIDCClientSecret, ko.OIDCRedirectURL, fClient) // TODO, use the chain.
 	if err != nil {
 		return nil, fmt.Errorf("retrieving cert: %w", err)
 	}
@@ -180,6 +190,10 @@ func NewSigner(ctx context.Context, ko options.KeyOpts, signer signature.SignerV
 	}
 
 	return f, nil
+}
+
+func NewSigner(ctx context.Context, ko options.KeyOpts, signer signature.SignerVerifier) (*Signer, error) {
+	return NewSignerWithAdapter(ctx, ko, signer, signer)
 }
 
 func (f *Signer) PublicKey(opts ...signature.PublicKeyOption) (crypto.PublicKey, error) { //nolint: revive

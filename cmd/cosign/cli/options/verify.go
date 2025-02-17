@@ -16,9 +16,13 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign"
+	cosign_pkg "github.com/sigstore/cosign/v2/pkg/cosign"
 )
 
 type CommonVerifyOptions struct {
@@ -173,6 +177,7 @@ type VerifyBlobOptions struct {
 	CommonVerifyOptions CommonVerifyOptions
 
 	RFC3161TimestampPath string
+	SigningAlgorithm     string
 }
 
 var _ Interface = (*VerifyBlobOptions)(nil)
@@ -202,6 +207,10 @@ func (o *VerifyBlobOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.RFC3161TimestampPath, "rfc3161-timestamp", "",
 		"path to RFC3161 timestamp FILE")
+
+	keyAlgorithmTypes := cosign_pkg.GetSupportedAlgorithms()
+	keyAlgorithmHelp := fmt.Sprintf("signing algorithm to use for signing/hashing (allowed %s)", strings.Join(keyAlgorithmTypes, ", "))
+	cmd.Flags().StringVar(&o.SigningAlgorithm, "signing-algorithm", "", keyAlgorithmHelp)
 }
 
 // VerifyDockerfileOptions is the top level wrapper for the `dockerfile verify` command.

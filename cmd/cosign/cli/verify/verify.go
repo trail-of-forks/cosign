@@ -82,6 +82,7 @@ type VerifyCommand struct {
 	IgnoreTlog                   bool
 	MaxWorkers                   int
 	ExperimentalOCI11            bool
+	SigningAlgorithm             string
 }
 
 // Exec runs the verification command

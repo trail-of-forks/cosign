@@ -29,11 +29,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"github.com/sigstore/sigstore/pkg/signature/options"
 )
 
 const (
@@ -66,6 +69,19 @@ type KeysBytes struct {
 
 func (k *KeysBytes) Password() []byte {
 	return k.password
+}
+
+func GetSupportedAlgorithms() []string {
+	algorithms := make([]string, 0, len(v1.PublicKeyDetails_name))
+	for algorithmId := range v1.PublicKeyDetails_name {
+		signatureFlag, err := signature.FormatSignatureAlgorithmFlag(v1.PublicKeyDetails(algorithmId))
+		if err != nil {
+			continue
+		}
+		algorithms = append(algorithms, signatureFlag)
+	}
+	sort.Strings(algorithms)
+	return algorithms
 }
 
 // GeneratePrivateKey generates an ECDSA private key with the P-256 curve.
@@ -207,9 +223,31 @@ func PemToECDSAKey(pemBytes []byte) (*ecdsa.PublicKey, error) {
 	return ecdsaPub, nil
 }
 
+func GetHashFunctionFromPublicKey(pub crypto.PublicKey) crypto.Hash {
+	switch typePubKey := pub.(type) {
+	case *ecdsa.PublicKey:
+		switch typePubKey.Curve {
+		case elliptic.P256():
+			return crypto.SHA256
+		case elliptic.P384():
+			return crypto.SHA384
+		case elliptic.P521():
+			return crypto.SHA512
+		default:
+			return crypto.SHA256
+		}
+	case *rsa.PublicKey:
+		return crypto.SHA256
+	case ed25519.PublicKey:
+		return crypto.SHA512
+	default:
+		return crypto.SHA256
+	}
+}
+
 // LoadPrivateKey loads a cosign PEM private key encrypted with the given passphrase,
 // and returns a SignerVerifier instance. The private key must be in the PKCS #8 format.
-func LoadPrivateKey(key []byte, pass []byte) (signature.SignerVerifier, error) {
+func LoadPrivateKeyWithAlgorithmDetails(key []byte, pass []byte, algorithmDetails *signature.AlgorithmDetails) (signature.SignerVerifier, error) {
 	// Decrypt first
 	p, _ := pem.Decode(key)
 	if p == nil {
@@ -227,14 +265,90 @@ func LoadPrivateKey(key []byte, pass []byte) (signature.SignerVerifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing private key: %w", err)
 	}
-	switch pk := pk.(type) {
-	case *rsa.PrivateKey:
-		return signature.LoadRSAPKCS1v15SignerVerifier(pk, crypto.SHA256)
-	case *ecdsa.PrivateKey:
-		return signature.LoadECDSASignerVerifier(pk, crypto.SHA256)
-	case ed25519.PrivateKey:
-		return signature.LoadED25519SignerVerifier(pk)
-	default:
-		return nil, errors.New("unsupported key type")
+
+	opts := []signature.LoadOption{}
+	if algorithmDetails != nil {
+		// If the algorithm details are provided, check that the private key is
+		// consistent with the algorithm details and use the hash type from the
+		// algorithm details
+		isValid, err := (*algorithmDetails).IsValidPrivateKey(pk)
+		if err != nil {
+			return nil, fmt.Errorf("invalid private key: %w", err)
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid private key for the given signing algorithm")
+		}
+		hashType := (*algorithmDetails).GetHashType()
+		opts = append(opts, options.WithHash(hashType))
+		// Set the extra options based on the algorithm details
+		switch (*algorithmDetails).GetSignatureAlgorithm() {
+		case v1.PublicKeyDetails_PKIX_ED25519_PH:
+			opts = append(opts, options.WithED25519ph())
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_2048_SHA256:
+			fallthrough
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_3072_SHA256:
+			fallthrough
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_4096_SHA256:
+			opts = append(opts, options.WithRSAPSS(&rsa.PSSOptions{Hash: hashType}))
+		}
+	} else {
+		// Determine the hash type from the public key
+		var pubKey crypto.PublicKey
+		switch typePk := pk.(type) {
+		case *ecdsa.PrivateKey:
+			pubKey = typePk.Public()
+		case *rsa.PrivateKey:
+			pubKey = typePk.Public()
+		case ed25519.PrivateKey:
+			pubKey = typePk.Public()
+			opts = append(opts, options.WithED25519ph())
+		}
+		opts = append(opts, options.WithHash(GetHashFunctionFromPublicKey(pubKey)))
 	}
+
+	return signature.LoadSignerVerifierWithOpts(pk, opts...)
+}
+
+// LoadPrivateKey loads a cosign PEM private key encrypted with the given passphrase,
+// and returns a SignerVerifier instance. The private key must be in the PKCS #8 format.
+func LoadPrivateKey(key []byte, pass []byte) (signature.SignerVerifier, error) {
+	return LoadPrivateKeyWithAlgorithmDetails(key, pass, nil)
+}
+
+// LoadPublicKeyWithAlgorithmDetails loads a verifier from a public key, using
+// the algorithmDetails to understand how to use the key for verification.
+func LoadPublicKeyWithAlgorithmDetails(pub crypto.PublicKey, algorithmDetails *signature.AlgorithmDetails) (signature.Verifier, error) {
+	opts := []signature.LoadOption{}
+	if algorithmDetails != nil {
+		// If the algorithm details are provided, check that the private key is
+		// consistent with the algorithm details and use the hash type from the
+		// algorithm details
+		isValid, err := (*algorithmDetails).IsValidPublicKey(pub)
+		if err != nil {
+			return nil, fmt.Errorf("invalid public key: %w", err)
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid public key for the given signing algorithm")
+		}
+		hashType := (*algorithmDetails).GetHashType()
+		opts = append(opts, options.WithHash(hashType))
+		// Set the extra options based on the algorithm details
+		switch (*algorithmDetails).GetSignatureAlgorithm() {
+		case v1.PublicKeyDetails_PKIX_ED25519_PH:
+			opts = append(opts, options.WithED25519ph())
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_2048_SHA256:
+			fallthrough
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_3072_SHA256:
+			fallthrough
+		case v1.PublicKeyDetails_PKIX_RSA_PSS_4096_SHA256:
+			opts = append(opts, options.WithRSAPSS(&rsa.PSSOptions{Hash: hashType}))
+		}
+	} else {
+		if _, ok := pub.(ed25519.PublicKey); ok {
+			opts = append(opts, options.WithED25519ph())
+		}
+		opts = append(opts, options.WithHash(GetHashFunctionFromPublicKey(pub)))
+	}
+
+	return signature.LoadVerifierWithOpts(pub, opts...)
 }

@@ -16,6 +16,10 @@
 package options
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +47,7 @@ type SignBlobOptions struct {
 	TSAServerURL         string
 	RFC3161TimestampPath string
 	IssueCertificate     bool
+	SigningAlgorithm     string
 }
 
 var _ Interface = (*SignBlobOptions)(nil)
@@ -111,4 +116,8 @@ func (o *SignBlobOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&o.IssueCertificate, "issue-certificate", false,
 		"issue a code signing certificate from Fulcio, even if a key is provided")
+
+	keyAlgorithmTypes := cosign.GetSupportedAlgorithms()
+	keyAlgorithmHelp := fmt.Sprintf("signing algorithm to use for signing/hashing (allowed %s)", strings.Join(keyAlgorithmTypes, ", "))
+	cmd.Flags().StringVar(&o.SigningAlgorithm, "signing-algorithm", "", keyAlgorithmHelp)
 }

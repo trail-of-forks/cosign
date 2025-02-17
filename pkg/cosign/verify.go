@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
@@ -177,6 +178,12 @@ type CheckOpts struct {
 	// TrustedMaterial is the trusted material to use for verification.
 	// Currently, this is only applicable when NewBundleFormat is true.
 	TrustedMaterial root.TrustedMaterial
+
+	// AlgorithmDetails specifies which signing algorithm a signature should be
+	// validated against. If no AlgorithmDetails is specified, the algorithm is
+	// automatically determined from the key/certificate/bundle used for
+	// verification.
+	AlgorithmDetails *signature.AlgorithmDetails
 }
 
 type verifyTrustedMaterial struct {
@@ -186,6 +193,60 @@ type verifyTrustedMaterial struct {
 
 func (v *verifyTrustedMaterial) PublicKeyVerifier(hint string) (root.TimeConstrainedVerifier, error) {
 	return v.keyTrustedMaterial.PublicKeyVerifier(hint)
+}
+
+type validateCertOpts struct {
+	chain  []*x509.Certificate
+	algorithmDetails *signature.AlgorithmDetails
+	pool   *x509.CertPool
+}
+
+type ValidateAndUnpackCertOption func(*validateCertOpts)
+
+func WithChain(chain []*x509.Certificate) ValidateAndUnpackCertOption {
+	return func(o *validateCertOpts) {
+		o.chain = chain
+	}
+}
+
+func WithPool(pool *x509.CertPool) ValidateAndUnpackCertOption {
+	return func(o *validateCertOpts) {
+		o.pool = pool
+	}
+}
+
+func WithAlgorithmDetails(algorithmDetails *signature.AlgorithmDetails) ValidateAndUnpackCertOption {
+	return func(o *validateCertOpts) {
+		o.algorithmDetails = algorithmDetails
+	}
+}
+
+func makeValidateAndUnpackCertOpts(co *CheckOpts, opts ...ValidateAndUnpackCertOption) (*validateCertOpts, error) {
+	o := &validateCertOpts{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	// Pool Option has precedence over chain option
+	if o.pool == nil && o.chain != nil {
+		if len(o.chain) == 0 {
+			return nil, errors.New("no chain provided to validate certificate")
+		}
+		rootPool := x509.NewCertPool()
+		rootPool.AddCert(o.chain[len(o.chain)-1])
+		co.RootCerts = rootPool
+
+		subPool := x509.NewCertPool()
+		for _, c := range o.chain[:len(o.chain)-1] {
+			subPool.AddCert(c)
+		}
+		o.pool = subPool
+	}
+	// If no pool or chain is provided, use the one from the CheckOpts
+	if o.pool == nil {
+		o.pool = co.IntermediateCerts
+	}
+	return o, nil
 }
 
 // verificationOptions returns the verification options for verifying with sigstore-go.
@@ -311,14 +372,33 @@ func verifyOCISignature(ctx context.Context, verifier signature.Verifier, sig pa
 // certificate chains up to a trusted root using intermediate certificate chain coming from CheckOpts.
 // Optionally verifies the subject and issuer of the certificate.
 func ValidateAndUnpackCert(cert *x509.Certificate, co *CheckOpts) (signature.Verifier, error) {
-	return ValidateAndUnpackCertWithIntermediates(cert, co, co.IntermediateCerts)
+	return ValidateAndUnpackCertWithOpts(cert, co)
 }
 
 // ValidateAndUnpackCertWithIntermediates creates a Verifier from a certificate. Verifies that the
 // certificate chains up to a trusted root using intermediate cert passed as separate argument.
 // Optionally verifies the subject and issuer of the certificate.
 func ValidateAndUnpackCertWithIntermediates(cert *x509.Certificate, co *CheckOpts, intermediateCerts *x509.CertPool) (signature.Verifier, error) {
-	verifier, err := signature.LoadVerifier(cert.PublicKey, crypto.SHA256)
+	return ValidateAndUnpackCertWithOpts(cert, co, WithPool(intermediateCerts))
+}
+
+// ValidateAndUnpackCertWithChain creates a Verifier from a certificate. Verifies that the certificate
+// chains up to the provided root. Chain should start with the parent of the certificate and end with the root.
+// Optionally verifies the subject and issuer of the certificate.
+func ValidateAndUnpackCertWithChain(cert *x509.Certificate, chain []*x509.Certificate, co *CheckOpts) (signature.Verifier, error) {
+	return ValidateAndUnpackCertWithOpts(cert, co, WithChain(chain))
+}
+
+// ValidateAndUnpackCertWithOpts creates a Verifier from a certificate. Verifies that the certificate
+// chains up to a trusted root. Optionally verifies the subject and issuer of the certificate.
+// Accept chain and algorithmDetails as optional parameters.
+func ValidateAndUnpackCertWithOpts(cert *x509.Certificate, co *CheckOpts, opts ...ValidateAndUnpackCertOption) (signature.Verifier, error) {
+	o, err := makeValidateAndUnpackCertOpts(co, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	verifier, err := LoadPublicKeyWithAlgorithmDetails(cert.PublicKey, o.algorithmDetails)
 	if err != nil {
 		return nil, fmt.Errorf("invalid certificate found on signature: %w", err)
 	}
@@ -338,7 +418,7 @@ func ValidateAndUnpackCertWithIntermediates(cert *x509.Certificate, co *CheckOpt
 	}
 
 	// Now verify the cert, then the signature.
-	chains, err := TrustedCert(cert, co.RootCerts, intermediateCerts)
+	chains, err := TrustedCert(cert, co.RootCerts, o.pool)
 
 	if err != nil {
 		return nil, err
@@ -501,26 +581,6 @@ func validateCertExtensions(ce CertExtensions, co *CheckOpts) error {
 		}
 	}
 	return nil
-}
-
-// ValidateAndUnpackCertWithChain creates a Verifier from a certificate. Verifies that the certificate
-// chains up to the provided root. Chain should start with the parent of the certificate and end with the root.
-// Optionally verifies the subject and issuer of the certificate.
-func ValidateAndUnpackCertWithChain(cert *x509.Certificate, chain []*x509.Certificate, co *CheckOpts) (signature.Verifier, error) {
-	if len(chain) == 0 {
-		return nil, errors.New("no chain provided to validate certificate")
-	}
-	rootPool := x509.NewCertPool()
-	rootPool.AddCert(chain[len(chain)-1])
-	co.RootCerts = rootPool
-
-	subPool := x509.NewCertPool()
-	for _, c := range chain[:len(chain)-1] {
-		subPool.AddCert(c)
-	}
-	co.IntermediateCerts = subPool
-
-	return ValidateAndUnpackCert(cert, co)
 }
 
 func tlogValidateEntry(ctx context.Context, client *client.Rekor, rekorPubKeys *TrustedTransparencyLogPubKeys,
@@ -839,7 +899,7 @@ func verifyInternal(ctx context.Context, sig oci.Signature, h v1.Hash,
 		if pool == nil {
 			pool = co.IntermediateCerts
 		}
-		verifier, err = ValidateAndUnpackCertWithIntermediates(cert, co, pool)
+		verifier, err = ValidateAndUnpackCertWithOpts(cert, co, WithPool(pool), WithAlgorithmDetails(co.AlgorithmDetails))
 		if err != nil {
 			return false, err
 		}
@@ -1198,12 +1258,23 @@ func VerifyBundle(sig oci.Signature, co *CheckOpts) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("computing bundle hash: %w", err)
 	}
-	h := sha256.Sum256(payload)
-	payloadHash := hex.EncodeToString(h[:])
 
-	if alg != "sha256" {
+	var payloadHash string
+	switch alg.HashFunc() {
+	case crypto.SHA256:
+		h := sha256.Sum256(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	case crypto.SHA384:
+		h := sha512.Sum384(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	case crypto.SHA512:
+		h := sha512.Sum512(payload)
+		payloadHash = hex.EncodeToString(h[:])
+	default:
 		return false, fmt.Errorf("unexpected algorithm: %q", alg)
-	} else if bundlehash != payloadHash {
+	}
+
+	if bundlehash != payloadHash {
 		return false, fmt.Errorf("matching bundle to payload: bundle=%q, payload=%q", bundlehash, payloadHash)
 	}
 	return true, nil
@@ -1324,25 +1395,36 @@ func extractEntryImpl(bundleBody string) (rekor_types.EntryImpl, error) {
 	return rekor_types.UnmarshalEntry(pe)
 }
 
-func bundleHash(bundleBody, _ string) (string, string, error) {
+func HashAlgorithmToCryptoHash(hashAlgorithm string) crypto.Hash {
+	switch hashAlgorithm {
+	case "sha384":
+		return crypto.SHA384
+	case "sha512":
+		return crypto.SHA512
+	default:
+		return crypto.SHA256
+	}
+}
+
+func bundleHash(bundleBody, _ string) (crypto.Hash, string, error) {
 	ei, err := extractEntryImpl(bundleBody)
 	if err != nil {
-		return "", "", err
+		return crypto.Hash(0), "", err
 	}
 
 	switch entry := ei.(type) {
 	case *dsse_v001.V001Entry:
-		return *entry.DSSEObj.EnvelopeHash.Algorithm, *entry.DSSEObj.EnvelopeHash.Value, nil
+		return HashAlgorithmToCryptoHash(*entry.DSSEObj.EnvelopeHash.Algorithm), *entry.DSSEObj.EnvelopeHash.Value, nil
 	case *hashedrekord_v001.V001Entry:
-		return *entry.HashedRekordObj.Data.Hash.Algorithm, *entry.HashedRekordObj.Data.Hash.Value, nil
+		return HashAlgorithmToCryptoHash(*entry.HashedRekordObj.Data.Hash.Algorithm), *entry.HashedRekordObj.Data.Hash.Value, nil
 	case *intoto_v001.V001Entry:
-		return *entry.IntotoObj.Content.Hash.Algorithm, *entry.IntotoObj.Content.Hash.Value, nil
+		return HashAlgorithmToCryptoHash(*entry.IntotoObj.Content.Hash.Algorithm), *entry.IntotoObj.Content.Hash.Value, nil
 	case *intoto_v002.V002Entry:
-		return *entry.IntotoObj.Content.Hash.Algorithm, *entry.IntotoObj.Content.Hash.Value, nil
+		return HashAlgorithmToCryptoHash(*entry.IntotoObj.Content.Hash.Algorithm), *entry.IntotoObj.Content.Hash.Value, nil
 	case *rekord_v001.V001Entry:
-		return *entry.RekordObj.Data.Hash.Algorithm, *entry.RekordObj.Data.Hash.Value, nil
+		return HashAlgorithmToCryptoHash(*entry.RekordObj.Data.Hash.Algorithm), *entry.RekordObj.Data.Hash.Value, nil
 	default:
-		return "", "", errors.New("unsupported type")
+		return crypto.Hash(0), "", errors.New("unsupported type")
 	}
 }
 
